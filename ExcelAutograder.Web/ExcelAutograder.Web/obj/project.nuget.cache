@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "3v8TGg2duis=",
+  "dgSpecHash": "l/WsKNsX5p4=",
   "success": true,
-  "projectFilePath": "C:\\Users\\strub\\source\\repos\\spreadsheet-Chambard-source\\ExcelAutograder.Web\\ExcelAutograder.Web\\ExcelAutograder.Web.csproj",
+  "projectFilePath": "C:\\Users\\strub\\Source\\Repos\\Excel_Autograder\\ExcelAutograder.Web\\ExcelAutograder.Web\\ExcelAutograder.Web.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\strub\\.nuget\\packages\\closedxml\\0.105.0\\closedxml.0.105.0.nupkg.sha512",
     "C:\\Users\\strub\\.nuget\\packages\\closedxml.parser\\2.0.0\\closedxml.parser.2.0.0.nupkg.sha512",

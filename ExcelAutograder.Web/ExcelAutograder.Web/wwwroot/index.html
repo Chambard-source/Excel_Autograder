@@ -364,7 +364,7 @@
 
         // ---------- builder state
         let rubric = { points: 5, report: { include_pass_fail_column: true, include_comments: true }, sheets: {} };
-        const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout'];
+        const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout', 'conditional_format'];
         const emptyRule = (type = 'formula') => ({ type, points: 1, cell: '', range: '', note: '', tolerance: null, any_of: null, expected_from_key: null, expected: null, expected_regex: null, expected_formula: null, allow_regex: null, expected_formula_regex: null, format: null, require: null, start: null, step: null, require_absolute: null });
 
         // ---------- render
@@ -468,6 +468,130 @@
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
                     row2.append(btnDup, btnDel);
+                } else if (type === 'conditional_format') {
+                    // --- build basic labeled controls without depending on `labelled()` ---
+                    const mkLabeled = (labelText, control) => {
+                        const w = document.createElement('div');
+                        w.className = 'stack';
+                        const lab = document.createElement('div');
+                        lab.className = 'tiny muted';
+                        lab.textContent = labelText;
+                        w.append(lab, control);
+                        return w;
+                    };
+
+                    // controls
+                    const sheet = document.createElement('input'); sheet.placeholder = 'Sheet (optional)';
+                    const range = document.createElement('input'); range.placeholder = 'Range (e.g., B2:B50)';
+
+                    const typ = document.createElement('select');
+                    [['cellIs', 'Cell is…'], ['expression', 'Formula (TRUE/FALSE)'], ['containsText', 'Contains text'], ['top10', 'Top/bottom N'], ['dataBar', 'Data bar'], ['colorScale', 'Color scale'], ['iconSet', 'Icon set']]
+                        .forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; typ.append(o); });
+
+                    const op = document.createElement('select');  // OPERATOR
+                    [['gt', '> greater than'], ['ge', '≥ greater than or equal'], ['lt', '< less than'], ['le', '≤ less than or equal'], ['eq', '= equal to'], ['ne', '≠ not equal to'], ['between', 'between (inclusive)'], ['notBetween', 'not between']]
+                        .forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; op.append(o); });
+
+                    const f1 = document.createElement('input'); f1.placeholder = 'Value / Formula 1 (e.g., 85 or =B2>0)';
+                    const f2 = document.createElement('input'); f2.placeholder = 'Value / Formula 2 (for between)';
+                    const txt = document.createElement('input'); txt.placeholder = 'Text to look for';
+                    const fill = document.createElement('input'); fill.placeholder = 'Fill RGB (optional, e.g., FFFF00)';
+
+                    // hydrate rule state
+                    r.cond = r.cond || {};
+                    const c = r.cond;
+                    sheet.value = c.sheet ?? '';
+                    range.value = c.range ?? '';
+                    typ.value = c.type ?? 'cellIs';
+                    op.value = c.op ?? 'gt';
+                    f1.value = c.formula1 ?? '';
+                    f2.value = c.formula2 ?? '';
+                    txt.value = c.text ?? '';
+                    fill.value = c.fillRgb ?? '';
+
+                    // ensure operator has a visible default
+                    if (!op.value || ![...op.options].some(o => o.value === op.value)) {
+                        op.selectedIndex = 0;   // first option (> greater than)
+                    }
+
+
+                    // layout rows
+                    const topRow = document.createElement('div');
+                    topRow.className = 'hstack';
+                    topRow.style.gap = '8px';
+                    topRow.style.flexWrap = 'wrap';
+
+                    const wSheet = mkLabeled('Sheet', sheet);
+                    const wRange = mkLabeled('Range', range);
+                    const wType = mkLabeled('Type', typ);
+                    const wOp = mkLabeled('Operator', op);   // explicit wrapper we toggle
+
+                    topRow.append(wSheet, wRange, wType, wOp);
+                    row2.append(topRow);
+
+                    const botRow = document.createElement('div');
+                    botRow.className = 'row';
+                    botRow.style.gridTemplateColumns = '1fr 1fr 1fr 1fr';
+                    botRow.style.gap = '8px';
+
+                    const wF1 = mkLabeled('Value / Formula 1', f1);
+                    const wF2 = mkLabeled('Value / Formula 2', f2);
+                    const wText = mkLabeled('Text', txt);
+                    const wFill = mkLabeled('Fill RGB', fill);
+
+                    botRow.append(wF1, wF2, wText, wFill);
+                    row2.append(botRow);
+
+                    // actions
+                    const btnDup = el('button', 'ghost', 'Duplicate');
+                    const btnDel = el('button', 'ghost danger', 'Remove');
+                    btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+                    btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+                    row2.append(btnDup, btnDel);
+
+                    // save + toggle
+                    const save = () => {
+                        const norm = s => (s || '').trim();
+                        r.cond = {
+                            sheet: norm(sheet.value) || null,
+                            range: norm(range.value) || null,
+                            type: typ.value || null,
+                            op: op.value || null,
+                            formula1: norm(f1.value) || null,
+                            formula2: norm(f2.value) || null,
+                            text: norm(txt.value) || null,
+                            fillRgb: norm(fill.value) || null
+                        };
+                        refreshJsonPreview();
+                        toggle();
+                    };
+
+                    const toggle = () => {
+                        const t = typ.value;
+                        // Operator visible only when "Cell is…"
+                        wOp.style.display = (t === 'cellIs') ? '' : 'none';
+                        // Value 2 only for between/notBetween under Cell is…
+                        wF2.style.display = (t === 'cellIs' && (op.value === 'between' || op.value === 'notBetween')) ? '' : 'none';
+                        // Text only for containsText
+                        wText.style.display = (t === 'containsText') ? '' : 'none';
+                        // Expression: operator + value2 hidden, value1 shown
+                        if (t === 'expression') {
+                            wOp.style.display = 'none';
+                            wF2.style.display = 'none';
+                        }
+                        // Style-only types: hide op + value1 + value2 + text (fill may still be used)
+                        if (t === 'dataBar' || t === 'colorScale' || t === 'iconSet' || t === 'top10') {
+                            wOp.style.display = 'none';
+                            wF1.style.display = 'none';
+                            wF2.style.display = 'none';
+                            wText.style.display = 'none';
+                        }
+                    };
+
+                    [sheet, range, typ, op, f1, f2, txt, fill].forEach(x => x.addEventListener('change', save));
+
+                    // IMPORTANT: call toggle AFTER appending to DOM so display changes take effect
+                    toggle();
                 } else {
                     // fallback
                     const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
@@ -526,13 +650,13 @@
             if (!keyInput?.files?.length) { alert('Please choose a key workbook first.'); return; }
 
             const key = keyInput.files[0];
-            const qs = new URLSearchParams();
-            if (hint) qs.set('sheetHint', hint);
-            qs.set('allSheets', allSheets ? 'true' : 'false');
-            if (totalStr) qs.set('total', totalStr);
+            const url = `/api/auto-rubric`;
+            const form = new FormData();
+            form.append('key', key);
+            if (hint) form.append('sheet', hint);         // <-- server expects 'sheet'
+            form.append('all', allSheets ? 'true' : 'false'); // <-- server expects 'all'
+            if (totalStr) form.append('total', totalStr);  // <-- server expects 'total'
 
-            const url = `/api/auto-rubric?${qs.toString()}`;
-            const form = new FormData(); form.append('key', key);
             try {
                 const res = await fetch(url, { method: 'POST', body: form });
                 if (!res.ok) { const t = await res.text(); throw new Error(t || `HTTP ${res.status}`); }

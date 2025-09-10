@@ -73,6 +73,7 @@ app.MapPost("/api/grade", async (HttpRequest req) =>
     var throttler = new SemaphoreSlim(4); // tune: 4-8
     var tasks = new List<Task>();
 
+    // Grade students (parallel with throttling)
     foreach (var s in students)
     {
         await throttler.WaitAsync();
@@ -80,9 +81,17 @@ app.MapPost("/api/grade", async (HttpRequest req) =>
         {
             try
             {
-                using var sStream = s.OpenReadStream();
-                using var wbStudent = new XLWorkbook(sStream);
-                var grade = Grader.Run(wbKey, wbStudent, rub);
+                // --- BUFFER STUDENT (so Grader can inspect ZIP for CFs)
+                byte[] sBytes;
+                using (var ms = new MemoryStream())
+                {
+                    using var sStreamRaw = s.OpenReadStream();
+                    await sStreamRaw.CopyToAsync(ms);
+                    sBytes = ms.ToArray();
+                }
+
+                using var wbStudent = new XLWorkbook(new MemoryStream(sBytes));
+                var grade = Grader.Run(wbKey, wbStudent, rub, sBytes); // <-- new overload
                 lock (results) results.Add(new { student = s.FileName, grade });
             }
             catch (Exception ex)
@@ -156,10 +165,19 @@ app.MapPost("/api/rubric/auto", async (HttpRequest req) =>
     if (!req.HasFormContentType) return Results.BadRequest(new { error = "Expected multipart/form-data" });
     var form = await req.ReadFormAsync();
     var keyFile = form.Files.GetFile("key");
-    var sheet = form["sheet"].FirstOrDefault();
-    var allStr = form["all"].FirstOrDefault();
-    var totalStr = form["total"].FirstOrDefault();
-    bool allSheets = string.Equals(allStr, "true", StringComparison.OrdinalIgnoreCase);
+
+    string? sheet = form["sheet"].FirstOrDefault() ?? req.Query["sheet"].FirstOrDefault() ?? req.Query["sheetHint"].FirstOrDefault();
+    string? allStr = form["all"].FirstOrDefault() ?? req.Query["all"].FirstOrDefault() ?? req.Query["allSheets"].FirstOrDefault();
+    string? totalStr = form["total"].FirstOrDefault() ?? req.Query["total"].FirstOrDefault();
+
+    static bool ParseBool(string? s) =>
+            !string.IsNullOrWhiteSpace(s) &&
+            (s.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+             s.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+             s == "1");
+
+    bool allSheets = ParseBool(allStr);
+
 
     if (keyFile is null) return Results.BadRequest(new { error = "Upload key workbook as 'key'" });
 
@@ -191,10 +209,19 @@ app.MapPost("/api/auto-rubric", async (HttpRequest req) =>
     if (!req.HasFormContentType) return Results.BadRequest(new { error = "Expected multipart/form-data" });
     var form = await req.ReadFormAsync();
     var keyFile = form.Files.GetFile("key");
-    var sheet = form["sheet"].FirstOrDefault();
-    var allStr = form["all"].FirstOrDefault();
-    var totalStr = form["total"].FirstOrDefault();
-    bool allSheets = string.Equals(allStr, "true", StringComparison.OrdinalIgnoreCase);
+
+    string? sheet = form["sheet"].FirstOrDefault() ?? req.Query["sheet"].FirstOrDefault() ?? req.Query["sheetHint"].FirstOrDefault();
+    string? allStr = form["all"].FirstOrDefault() ?? req.Query["all"].FirstOrDefault() ?? req.Query["allSheets"].FirstOrDefault();
+    string? totalStr = form["total"].FirstOrDefault() ?? req.Query["total"].FirstOrDefault();
+
+    static bool ParseBool(string? s) =>
+            !string.IsNullOrWhiteSpace(s) &&
+            (s.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+             s.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+             s == "1");
+
+    bool allSheets = ParseBool(allStr);
+
 
     if (keyFile is null) return Results.BadRequest(new { error = "Upload key workbook as 'key'" });
 

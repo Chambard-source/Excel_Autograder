@@ -1,0 +1,67 @@
+## Ignore Visual Studio user-specific files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## Ignore build output
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+out/
+
+## Ignore NuGet packages
+*.nupkg
+*.snupkg
+*.nuspec
+packages/
+*.nuget.props
+*.nuget.targets
+
+## Ignore test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+## Ignore VS Code settings if present
+.vscode/
+
+## Ignore Resharper and other JetBrains tools
+_ReSharper*/
+*.DotSettings.user
+.idea/
+
+## Ignore other caches
+*.vsidx
+*.sdf
+*.dbmdl
+*.jfm
+*.cache
+*.pdb
+*.opendb
+*.VC.db
+*.ipch/
+
+## Ignore publish profiles
+*.pubxml
+*.publishproj
+
+## Ignore Azure
+*.azurePubxml
+.publishsettings
+
+## Ignore node_modules if using JS/React inside solution
+node_modules/
+
+## Ignore environment files
+*.env

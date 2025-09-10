@@ -303,11 +303,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\strub\\source\\repos\\spreadsheet-Chambard-source\\ExcelAutograder.Web\\ExcelAutograder.Web\\ExcelAutograder.Web.csproj",
+      "projectUniqueName": "C:\\Users\\strub\\Source\\Repos\\Excel_Autograder\\ExcelAutograder.Web\\ExcelAutograder.Web\\ExcelAutograder.Web.csproj",
       "projectName": "ExcelAutograder.Web",
-      "projectPath": "C:\\Users\\strub\\source\\repos\\spreadsheet-Chambard-source\\ExcelAutograder.Web\\ExcelAutograder.Web\\ExcelAutograder.Web.csproj",
+      "projectPath": "C:\\Users\\strub\\Source\\Repos\\Excel_Autograder\\ExcelAutograder.Web\\ExcelAutograder.Web\\ExcelAutograder.Web.csproj",
       "packagesPath": "C:\\Users\\strub\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\strub\\source\\repos\\spreadsheet-Chambard-source\\ExcelAutograder.Web\\ExcelAutograder.Web\\obj\\",
+      "outputPath": "C:\\Users\\strub\\Source\\Repos\\Excel_Autograder\\ExcelAutograder.Web\\ExcelAutograder.Web\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

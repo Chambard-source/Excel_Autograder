@@ -50,6 +50,7 @@ public class Rule
     // Pivot layout (for rule type "pivot_layout")
     [JsonPropertyName("pivot")] public PivotSpec? Pivot { get; set; }
 
+    [JsonPropertyName("cond")] public ConditionalFormatSpec? Cond { get; set; }
 
 }
 
@@ -103,7 +104,17 @@ public class PivotValueSpec
     [JsonPropertyName("agg")] public string? Agg { get; set; } // sum,count,average,min,max
 }
 
-
+public class ConditionalFormatSpec
+{
+    [JsonPropertyName("sheet")] public string? Sheet { get; set; }        // optional; if null, we’ll match on the sheet in the rubric section
+    [JsonPropertyName("range")] public string? Range { get; set; }        // optional; e.g., "B2:B50" (we’ll consider overlap)
+    [JsonPropertyName("type")] public string? Type { get; set; }          // cellIs, expression, containsText, top10, dataBar, colorScale, iconSet
+    [JsonPropertyName("op")] public string? Operator { get; set; }        // gt, ge, lt, le, eq, ne, between, notBetween (for cellIs)
+    [JsonPropertyName("formula1")] public string? Formula1 { get; set; }  // first formula (as text, e.g. "=B2>0")
+    [JsonPropertyName("formula2")] public string? Formula2 { get; set; }  // second formula for between/notBetween
+    [JsonPropertyName("text")] public string? Text { get; set; }          // used by containsText rules
+    [JsonPropertyName("fillRgb")] public string? FillRgb { get; set; }    // optional (e.g. "FFFF00"); we’ll try to match
+}
 
 
 public record CheckResult(string Name, double Points, double Earned, bool Passed, string Comment);
