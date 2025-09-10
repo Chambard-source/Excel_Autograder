@@ -52,6 +52,10 @@ public class Rule
 
     [JsonPropertyName("cond")] public ConditionalFormatSpec? Cond { get; set; }
 
+    // Value options
+    [JsonPropertyName("case_sensitive")]
+    public bool? CaseSensitive { get; set; }
+
 }
 
 
@@ -69,6 +73,9 @@ public class RuleOption
     [JsonPropertyName("expected_formula_regex")] public string? ExpectedFormulaRegex { get; set; }
     [JsonPropertyName("expected_from_key")] public bool? ExpectedFromKey { get; set; }
     [JsonPropertyName("require_absolute")] public bool? RequireAbsolute { get; set; }
+
+    [JsonPropertyName("case_sensitive")]
+    public bool? CaseSensitive { get; set; }
 }
 
 

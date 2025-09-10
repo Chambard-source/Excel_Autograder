@@ -434,7 +434,28 @@
             function showFor(type) {
                 row2.innerHTML = '';
                 if (type === 'formula') { row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap, btnDup, btnDel); }
-                else if (type === 'value') { row2.append(labelled(expectedVal, 'Expected'), btnDup, btnDel); }
+                else if (type === 'value') {
+                    const cs = document.createElement('input');
+                    cs.type = 'checkbox';
+                    cs.checked = !!r.case_sensitive;            // hydrate from current rule
+                    cs.onchange = () => {
+                        r.case_sensitive = cs.checked;            // write to JSON (snake_case)
+                        refreshJsonPreview();
+                    };
+
+                    // Layout: Expected | Case sensitive | (buttons on the right)
+                    const row = el('div', 'row');
+                    row.style.gridTemplateColumns = '1fr 180px auto auto';
+                    row.style.gap = '8px';
+                    row.append(
+                        labelled(expectedVal, 'Expected'),
+                        labelled(cs, 'Case sensitive'),
+                        btnDup,
+                        btnDel
+                    );
+
+                    row2.append(row);
+                }
                 else if (type === 'format' || type === 'range_format') { row2.append(labelled(numFmt, 'Number format'), btnDup, btnDel); }
                 else if (type === 'range_sequence') { row2.append(labelled(start, 'Start'), labelled(step, 'Step'), btnDup, btnDel); }
                 else if (type === 'pivot_layout') {

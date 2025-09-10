@@ -139,8 +139,14 @@ public static class Grader
             }
             else
             {
-                var eq = Normalize(sVal) == Normalize(expected);
-                return (eq, $"value='{Normalize(sVal)}' expected='{Normalize(expected)}'");
+                var actualStr = sVal.ToString()?.Trim() ?? "";
+                var expectedStr = (expected?.ToString() ?? "").Trim();
+
+                bool caseSensitive = opt.CaseSensitive ?? rule.CaseSensitive ?? false;
+                var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+
+                bool eq = string.Equals(actualStr, expectedStr, comparison);
+                return (eq, $"value='{actualStr}' expected='{expectedStr}' (case {(caseSensitive ? "sensitive" : "insensitive")})");
             }
         }
 
