@@ -1,0 +1,621 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Excel Autograder</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --panel: #121822;
+            --muted: #1c2430;
+            --ink: #e7ecf3;
+            --ink2: #b8c0cc;
+            --accent: #4aa3ff
+        }
+
+        html, body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font: 14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial
+        }
+
+        h1 {
+            font-weight: 700;
+            letter-spacing: .3px;
+            margin: 18px 0
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--muted);
+            border-radius: 10px;
+            padding: 16px
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px
+        }
+
+        .hstack {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        label small {
+            color: var(--ink2)
+        }
+
+        input[type="text"], input[type="number"], textarea, select {
+            background: #0e131b;
+            border: 1px solid var(--muted);
+            border-radius: 8px;
+            color: var(--ink);
+            padding: 8px 10px;
+            outline: none;
+            min-width: 0
+        }
+
+        input[type="file"] {
+            color: var(--ink2)
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 160px;
+            resize: vertical;
+            font-family: ui-monospace,SFMono,Consolas,monospace
+        }
+
+        button {
+            background: #1a2230;
+            border: 1px solid #263041;
+            color: var(--ink);
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer
+        }
+
+            button.primary {
+                background: var(--accent);
+                border-color: transparent;
+                color: #06131f
+            }
+
+            button.danger {
+                background: #3b1a1a;
+                border-color: #5b2a2a
+            }
+
+            button.ghost {
+                background: #0e131b
+            }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        .sheet {
+            border: 1px dashed #2b3748;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 12px
+        }
+
+        .rule {
+            border: 1px solid #2b3748;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 10px 0;
+            background: #0f1520
+        }
+
+            .rule .row {
+                grid-template-columns: 140px 1fr 1fr 1fr 1fr;
+                gap: 8px
+            }
+
+        .tiny {
+            font-size: 12px;
+            color: var(--ink2)
+        }
+
+        .pill {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #1f2937;
+            border: 1px solid #2a3647
+        }
+
+        .spacer {
+            height: 8px
+        }
+
+        .right {
+            margin-left: auto
+        }
+
+        .muted {
+            color: var(--ink2)
+        }
+
+        .hr {
+            height: 1px;
+            background: #223046;
+            margin: 12px 0
+        }
+
+        .checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%
+        }
+
+        th, td {
+            border: 1px solid #263041;
+            padding: 6px 8px;
+            vertical-align: top
+        }
+
+        th {
+            background: #0e151f;
+            font-weight: 600
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 999px;
+            font-size: 12px
+        }
+
+        .pass {
+            background: #103a22;
+            border: 1px solid #1e6d42;
+            color: #c8f7dc
+        }
+
+        .fail {
+            background: #3a1010;
+            border: 1px solid #6d1e1e;
+            color: #f7c8c8
+        }
+
+        .mono {
+            font-family: ui-monospace,SFMono,Consolas,monospace
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>Excel Autograder</h1>
+
+        <div class="row">
+            <div class="card stack">
+                <div class="stack">
+                    <label>Key workbook (.xlsx) <small>(used to generate rubric)</small></label>
+                    <input type="file" id="keyFile" accept=".xlsx" />
+                </div>
+
+                <div class="stack">
+                    <label>Student workbooks (.xlsx) — you can select multiple</label>
+                    <input type="file" id="studentFiles" multiple accept=".xlsx" />
+                </div>
+
+                <div class="hstack">
+                    <button id="btnGradeWithFile" class="ghost">Grade (using uploaded rubric file)</button>
+                    <button id="btnGradeWithJson" class="primary">Grade with Current JSON</button>
+                </div>
+            </div>
+
+            <div class="card stack">
+                <div class="stack">
+                    <label>Rubric (.json) <small>(optional — only used by “Grade (using uploaded rubric file)”)</small></label>
+                    <input type="file" id="rubricFile" accept=".json" />
+                </div>
+                <div class="stack">
+                    <label>Current Rubric JSON (preview)</label>
+                    <textarea id="jsonBox" spellcheck="false"></textarea>
+                    <div class="hstack">
+                        <button id="btnDownloadJson" class="ghost">Download JSON</button>
+                        <div class="tiny">This preview is always <strong>exactly</strong> what the builder below contains.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="card">
+            <h2 style="margin:4px 0 12px">Rubric Builder</h2>
+
+            <div class="grid-2">
+                <div class="stack">
+                    <label>Generate from Key (uses the Key file chosen above)</label>
+                    <div class="hstack">
+                        <input id="sheetHint" type="text" placeholder="e.g., 'Scores' or 'Summary' (optional)" />
+                        <label class="checkbox"><input type="checkbox" id="allSheets" /> All sheets</label>
+                        <input id="totalPoints" type="number" step="0.25" min="0" placeholder="Total Points (e.g., 5 or 10)" style="width:180px" />
+                        <button id="btnGenerate" class="primary">Generate</button>
+                        <button id="btnClear" class="danger">Clear Builder</button>
+                    </div>
+                    <div class="tiny muted">Generate → replaces the builder entirely with the auto-rubric from your key. No merge, no leftovers.</div>
+                </div>
+
+                <div class="stack">
+                    <label>Report options</label>
+                    <div class="hstack">
+                        <label class="checkbox"><input type="checkbox" id="optPassFail" checked /> Include Pass/Fail</label>
+                        <label class="checkbox"><input type="checkbox" id="optComments" checked /> Include Comments</label>
+                        <button id="btnGenerateJson" class="right">Generate JSON (from builder)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="hstack">
+                <button id="btnAddSheet" class="ghost">+ Add Sheet</button>
+                <span class="tiny pill">Tip: use “Duplicate” to clone a whole sheet or a single rule.</span>
+            </div>
+
+            <div id="sheets" class="stack"></div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <!-- RESULTS -->
+        <div class="card stack" id="resultsCard" style="display:none">
+            <div class="hstack">
+                <h2 style="margin:0">Results</h2>
+                <button id="btnDownloadReport" class="ghost right" title="Download the raw report as JSON">Download report</button>
+            </div>
+            <div id="resultsBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // ---------- helpers
+        const $ = s => document.querySelector(s);
+        const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
+        const download = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
+
+        // --- PIVOT HELPERS (UI) ---
+        function ensurePivot(r) {
+            const p = r.pivot || {};
+            // normalize arrays
+            const arr = v => Array.isArray(v) ? v : (v ? [v] : []);
+            // map PascalCase → camelCase if needed
+            const pv = {
+                sheet: p.sheet ?? p.Sheet ?? null,
+                tableNameLike: p.tableNameLike ?? p.TableNameLike ?? null,
+                rows: arr(p.rows ?? p.Rows).filter(Boolean),
+                columns: arr(p.columns ?? p.Columns).filter(Boolean),
+                filters: arr(p.filters ?? p.Filters).filter(Boolean),
+                values: (p.values ?? p.Values ?? []).map(v => ({
+                    field: v.field ?? v.Field ?? "",
+                    agg: (v.agg ?? v.Agg ?? "sum").toLowerCase()
+                }))
+            };
+            r.pivot = pv; // write back normalized shape so preview is clean
+            return pv;
+        }
+
+        const splitCSV = s => (s || '').split(',').map(x => x.trim()).filter(Boolean);
+        const joinCSV = arr => (arr || []).join(', ');
+
+        function pivotValuesBlock(rule, onChange) {
+            const pv = ensurePivot(rule);
+            const wrap = el('div', 'stack');
+
+            const list = el('div', 'stack');
+            wrap.append(list);
+
+            function oneRow(item, idx) {
+                const row = el('div', 'hstack');
+                const f = el('input'); f.placeholder = 'Field (e.g., Sales)'; f.style.width = '220px'; f.value = item.field || '';
+                const agg = el('select');['sum', 'count', 'average', 'min', 'max'].forEach(a => { const o = el('option'); o.value = o.textContent = a; if ((item.agg || 'sum') === a) o.selected = true; agg.append(o); });
+                const del = el('button', 'ghost danger', 'Remove');
+                row.append(labelled(f, 'Field'), labelled(agg, 'Aggregation'), del);
+
+                f.onchange = () => { pv.values[idx].field = f.value.trim(); onChange(); };
+                agg.onchange = () => { pv.values[idx].agg = agg.value; onChange(); };
+                del.onclick = () => { pv.values.splice(idx, 1); render(); };
+
+                return row;
+            }
+
+            function refreshList() {
+                list.innerHTML = '';
+                pv.values.forEach((v, i) => list.append(oneRow(v, i)));
+            }
+            refreshList();
+
+            const addBtn = el('button', 'ghost', '+ Add Value');
+            addBtn.onclick = () => { pv.values.push({ field: '', agg: 'sum' }); refreshList(); onChange(); };
+            wrap.append(addBtn);
+
+            return wrap;
+        }
+
+        // ---------- builder state
+        let rubric = { points: 5, report: { include_pass_fail_column: true, include_comments: true }, sheets: {} };
+        const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout'];
+        const emptyRule = (type = 'formula') => ({ type, points: 1, cell: '', range: '', note: '', tolerance: null, any_of: null, expected_from_key: null, expected: null, expected_regex: null, expected_formula: null, allow_regex: null, expected_formula_regex: null, format: null, require: null, start: null, step: null, require_absolute: null });
+
+        // ---------- render
+        function render() {
+            $('#optPassFail').checked = !(rubric.report && rubric.report.include_pass_fail_column === false);
+            $('#optComments').checked = !(rubric.report && rubric.report.include_comments === false);
+            $('#totalPoints').value = rubric.points ?? '';
+            const host = $('#sheets'); host.innerHTML = '';
+            Object.entries(rubric.sheets).forEach(([name, spec]) => host.appendChild(sheetBlock(name, spec)));
+            refreshJsonPreview();
+        }
+        function sheetBlock(name, spec) {
+            const wrap = el('div', 'sheet');
+            const header = el('div', 'hstack');
+            const nameInput = el('input'); nameInput.type = 'text'; nameInput.value = name; nameInput.style.width = '260px';
+            const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
+            header.append(el('div', '', '<span class="tiny">Sheet name</span><br/>'), nameInput, btnDup, btnDel);
+            wrap.append(header);
+            const list = el('div', 'stack'); (spec.checks || []).forEach((r, i) => list.append(ruleBlock(spec, r, i))); wrap.append(list);
+            const btnAdd = el('button', 'ghost', '+ Add Rule'); btnAdd.onclick = () => { spec.checks.push(emptyRule('formula')); render(); }; wrap.append(btnAdd);
+            nameInput.onchange = () => { const newName = (nameInput.value || 'Sheet').trim(); if (newName !== name) { rubric.sheets[newName] = spec; delete rubric.sheets[name]; render(); } };
+            btnDel.onclick = () => { delete rubric.sheets[name]; render(); };
+            btnDup.onclick = () => { let base = name + ' Copy', i = 1, c = base; while (rubric.sheets[c]) c = `${base} ${++i}`; rubric.sheets[c] = JSON.parse(JSON.stringify(spec)); render(); };
+            return wrap;
+        }
+        function ruleBlock(spec, r, idx) {
+            const b = el('div', 'rule'), row1 = el('div', 'row');
+            const typeSel = el('select'); RULE_TYPES.forEach(t => { const o = el('option'); o.value = t; o.textContent = t; if (t === r.type) o.selected = true; typeSel.append(o); });
+            const pts = el('input'); pts.type = 'number'; pts.step = '0.25'; pts.min = '0'; pts.value = r.points ?? 1;
+            const cell = el('input'); cell.placeholder = 'e.g. B12'; cell.value = r.cell ?? '';
+            const range = el('input'); range.placeholder = 'e.g. A2:B11'; range.value = r.range ?? '';
+            const note = el('input'); note.placeholder = 'Note'; note.value = r.note ?? '';
+            row1.append(typeSel, labelled(pts, 'Pts'), labelled(cell, 'Cell'), labelled(range, 'Range'), labelled(note, 'Note')); b.append(row1);
+
+            const row2 = el('div', 'hstack');
+            const expectedVal = el('input');
+            expectedVal.placeholder = 'Expected';
+            expectedVal.style.width = '220px';
+            expectedVal.value = (r.expected ?? '') + '';
+            expectedVal.onchange = () => {
+                const v = expectedVal.value.trim();
+                // numbers -> Number, otherwise keep as string
+                r.expected = v === '' ? null : (/^-?\d+(?:\.\d+)?$/.test(v) ? +v : v);
+                refreshJsonPreview();
+            };
+            const exf = el('input'); exf.placeholder = 'Expected formula (=A1+...)'; exf.style.width = '220px'; exf.value = r.expected_formula ?? '';
+            const regex = el('input'); regex.placeholder = 'Regex (optional)'; regex.style.width = '200px'; regex.value = r.expected_formula_regex ?? '';
+            const fromKey = checkbox('From key', !!r.expected_from_key);
+            const absReq = checkbox('Require absolute ($)', !!r.require_absolute);
+            const numFmt = el('input'); numFmt.placeholder = 'Number format (e.g. 0.00)'; numFmt.style.width = '200px'; numFmt.value = (r.format && (r.format.number_format || r.format.NumberFormat)) || '';
+            const start = el('input'); start.type = 'number'; start.placeholder = 'Start'; start.style.width = '90px'; start.value = r.start ?? '';
+            const step = el('input'); step.type = 'number'; step.placeholder = 'Step'; step.style.width = '90px'; step.value = r.step ?? '';
+            const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
+
+            // NEW: Pivot inputs
+            const pvSheet = el('input'); pvSheet.placeholder = 'Sheet (optional)';
+            const pvName = el('input'); pvName.placeholder = 'Pivot name contains (optional)';
+            pvSheet.style.width = '200px'; pvName.style.width = '260px';
+
+            const pvRows = el('input'); pvRows.placeholder = 'Rows, comma-separated';
+            const pvCols = el('input'); pvCols.placeholder = 'Columns, comma-separated';
+            const pvFil = el('input'); pvFil.placeholder = 'Filters, comma-separated';
+            pvRows.style.width = pvCols.style.width = pvFil.style.width = '260px';
+
+            const pvValuesUI = pivotValuesBlock(r, refreshJsonPreview);
+
+            function showFor(type) {
+                row2.innerHTML = '';
+                if (type === 'formula') { row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap, btnDup, btnDel); }
+                else if (type === 'value') { row2.append(labelled(expectedVal, 'Expected'), btnDup, btnDel); }
+                else if (type === 'format' || type === 'range_format') { row2.append(labelled(numFmt, 'Number format'), btnDup, btnDel); }
+                else if (type === 'range_sequence') { row2.append(labelled(start, 'Start'), labelled(step, 'Step'), btnDup, btnDel); }
+                else if (type === 'pivot_layout') {
+                    const pv = ensurePivot(r);
+                    pvSheet.value = pv.sheet ?? '';
+                    pvName.value = pv.tableNameLike ?? '';
+                    pvRows.value = joinCSV(pv.rows);
+                    pvCols.value = joinCSV(pv.columns);
+                    pvFil.value = joinCSV(pv.filters);
+
+                    pvSheet.onchange = () => { ensurePivot(r).sheet = pvSheet.value.trim() || null; refreshJsonPreview(); };
+                    pvName.onchange = () => { ensurePivot(r).tableNameLike = pvName.value.trim() || null; refreshJsonPreview(); };
+                    pvRows.onchange = () => { ensurePivot(r).rows = splitCSV(pvRows.value); refreshJsonPreview(); };
+                    pvCols.onchange = () => { ensurePivot(r).columns = splitCSV(pvCols.value); refreshJsonPreview(); };
+                    pvFil.onchange = () => { ensurePivot(r).filters = splitCSV(pvFil.value); refreshJsonPreview(); };
+
+                    const left = el('div', 'stack');
+                    left.append(labelled(pvSheet, 'Sheet'), labelled(pvName, 'Name contains'), labelled(pvRows, 'Rows'), labelled(pvCols, 'Columns'), labelled(pvFil, 'Filters'));
+
+                    const right = el('div', 'stack');
+                    right.append(el('div', 'tiny muted', 'Values (Field + Aggregation)'), pvValuesUI);
+
+                    // 2-column layout for pivot editor
+                    const grid = el('div', 'row');
+                    grid.style.gridTemplateColumns = '1fr 1fr';
+                    grid.style.gap = '12px';
+                    grid.append(left, right);
+
+                    row2.append(grid);
+                    const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
+                    btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+                    btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+                    row2.append(btnDup, btnDel);
+                } else {
+                    // fallback
+                    const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
+                    btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+                    btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+                    row2.append(btnDup, btnDel);
+                }
+            }
+            
+            showFor(r.type); b.append(row2);
+
+            typeSel.onchange = () => { r.type = typeSel.value; showFor(r.type); refreshJsonPreview(); };
+            pts.onchange = () => { r.points = +pts.value || 0; refreshJsonPreview(); };
+            cell.onchange = () => { r.cell = cell.value.trim() || null; refreshJsonPreview(); };
+            range.onchange = () => { r.range = range.value.trim() || null; refreshJsonPreview(); };
+            note.onchange = () => { r.note = note.value.trim() || null; refreshJsonPreview(); };
+            exf.onchange = () => { r.expected_formula = exf.value.trim() || null; refreshJsonPreview(); };
+            regex.onchange = () => { r.expected_formula_regex = regex.value.trim() || null; refreshJsonPreview(); };
+            fromKey.input.onchange = () => { r.expected_from_key = fromKey.input.checked ? true : null; refreshJsonPreview(); };
+            absReq.input.onchange = () => { r.require_absolute = absReq.input.checked ? true : null; refreshJsonPreview(); };
+            numFmt.onchange = () => { if (!r.format) r.format = {}; r.format.number_format = numFmt.value.trim() || null; refreshJsonPreview(); };
+            start.onchange = () => { r.start = start.value === '' ? null : +start.value; refreshJsonPreview(); };
+            step.onchange = () => { r.step = step.value === '' ? null : +step.value; refreshJsonPreview(); };
+            btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+            btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+            return b;
+        }
+        function labelled(input, label) { const box = el('div', 'stack'); box.append(el('div', 'tiny muted', label), input); return box; }
+        function checkbox(txt, checked) { const w = el('label', 'checkbox'); const c = el('input'); c.type = 'checkbox'; c.checked = checked; const s = el('span', '', txt); w.append(c, s); return { wrap: w, input: c }; }
+
+        // ---------- JSON <-> builder
+        function refreshJsonPreview() { $('#jsonBox').value = JSON.stringify(collectRubric(), null, 2); }
+        function collectRubric() {
+            rubric.points = +($('#totalPoints').value || rubric.points || 0) || 0;
+            rubric.report = { include_pass_fail_column: $('#optPassFail').checked, include_comments: $('#optComments').checked };
+            return rubric;
+        }
+        function loadRubric(json) {
+            rubric = { points: json.points ?? 5, report: json.report ?? { include_pass_fail_column: true, include_comments: true }, sheets: {} };
+            if (json.sheets) { for (const [name, spec] of Object.entries(json.sheets)) { rubric.sheets[name] = { checks: Array.isArray(spec.checks) ? spec.checks : [] }; } }
+            render();
+        }
+
+        // ---------- actions
+        $('#btnAddSheet').onclick = () => { let base = 'Sheet', i = 1, name = base; while (rubric.sheets[name]) name = base + ' ' + (++i); rubric.sheets[name] = { checks: [emptyRule('formula')] }; render(); };
+        $('#btnClear').onclick = () => { rubric = { points: +($('#totalPoints').value || 5), report: { include_pass_fail_column: $('#optPassFail').checked, include_comments: $('#optComments').checked }, sheets: {} }; render(); };
+        $('#btnGenerateJson').onclick = () => { $('#jsonBox').value = JSON.stringify(collectRubric(), null, 2); };
+        $('#btnDownloadJson').onclick = () => { download('rubric.json', JSON.stringify(collectRubric(), null, 2)); };
+
+        // Auto-rubric from key
+        async function generateFromKey() {
+            const keyInput = $('#keyFile');
+            const hint = ($('#sheetHint')?.value || '').trim();
+            const allSheets = !!$('#allSheets')?.checked;
+            const totalStr = ($('#totalPoints')?.value || '').trim();
+            if (!keyInput?.files?.length) { alert('Please choose a key workbook first.'); return; }
+
+            const key = keyInput.files[0];
+            const qs = new URLSearchParams();
+            if (hint) qs.set('sheetHint', hint);
+            qs.set('allSheets', allSheets ? 'true' : 'false');
+            if (totalStr) qs.set('total', totalStr);
+
+            const url = `/api/auto-rubric?${qs.toString()}`;
+            const form = new FormData(); form.append('key', key);
+            try {
+                const res = await fetch(url, { method: 'POST', body: form });
+                if (!res.ok) { const t = await res.text(); throw new Error(t || `HTTP ${res.status}`); }
+                const rub = await res.json();
+                $('#jsonBox').value = JSON.stringify(rub, null, 2);
+                rubric = rub; // reset builder to server rubric
+                render();
+            } catch (err) { console.error(err); alert('Generation failed'); }
+        }
+        $('#btnGenerate').addEventListener('click', e => { e.preventDefault(); generateFromKey(); });
+
+        // ---------- grading
+        $('#btnGradeWithFile').onclick = async () => {
+            try {
+                const key = $('#keyFile').files[0], rub = $('#rubricFile').files[0], studs = $('#studentFiles').files;
+                if (!key || !rub || !studs.length) { alert('Pick a key, a rubric file, and at least one student workbook.'); return; }
+                const fd = new FormData(); fd.append('key', key); fd.append('rubric', rub); for (const f of studs) fd.append('students', f);
+                const res = await fetch('/api/grade', { method: 'POST', body: fd }); const txt = await res.text();
+                showReport(txt);
+            } catch (err) { console.error(err); alert('Grade failed'); }
+        };
+        $('#btnGradeWithJson').onclick = async () => {
+            try {
+                const key = $('#keyFile').files[0], studs = $('#studentFiles').files;
+                if (!key || !studs.length) { alert('Pick a key and at least one student workbook.'); return; }
+                // IMPORTANT: send exactly what’s in the preview box
+                const jsonBlob = new Blob([$('#jsonBox').value], { type: 'application/json' });
+                const fd = new FormData(); fd.append('key', key); fd.append('rubricJson', jsonBlob, 'rubric.json'); for (const f of studs) fd.append('students', f);
+                const res = await fetch('/api/grade', { method: 'POST', body: fd }); const txt = await res.text();
+                showReport(txt);
+            } catch (err) { console.error(err); alert('Grade failed'); }
+        };
+
+        // ---------- results viewer
+        let lastReportRaw = '';
+        $('#btnDownloadReport').onclick = () => { if (!lastReportRaw) { alert('Nothing to download yet.'); return; } download('report.json', lastReportRaw); };
+
+        function showReport(text) {
+            lastReportRaw = text || '';
+            const host = $('#resultsBody');
+            $('#resultsCard').style.display = 'block';
+            host.innerHTML = '';
+            let json = null; try { json = JSON.parse(text); } catch { }
+            let rows;
+            if (Array.isArray(json)) rows = json;
+            else if (json && Array.isArray(json.results)) rows = json.results;
+            else if (json && typeof json === 'object') rows = [json];
+            else { host.appendChild(el('pre', 'mono', (text || '').replace(/</g, '&lt;'))); return; }
+
+            rows.forEach((row, idx) => {
+                const grade = row.details ? row : (row.grade || {});
+                const details = grade.details || [];
+                const scoreText = grade.score_out_of_total ||
+                    (grade.score_numeric != null && grade.total_points != null ? `${grade.score_numeric}/${grade.total_points}` : '') || '';
+                const title = el('div', 'hstack',
+                    `<div class="pill mono">${escapeHtml(row.student || ('Student #' + (idx + 1)))}</div>
+                 <div class="pill">Score: <span class="mono">${escapeHtml(scoreText)}</span></div>`);
+                host.appendChild(title);
+
+                const table = el('table');
+                table.innerHTML = `<thead><tr><th>Check</th><th class="mono">Pts</th><th class="mono">Earned</th><th>Status</th><th>Comment</th></tr></thead><tbody></tbody>`;
+                const tb = table.querySelector('tbody');
+
+                details.forEach(d => {
+                    const tr = el('tr');
+                    tr.innerHTML =
+                        `<td class="mono">${escapeHtml(d.check || '')}</td>
+                   <td class="mono">${fmtNum(d.points)}</td>
+                   <td class="mono">${fmtNum(d.earned)}</td>
+                   <td>${d.passed ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
+                   <td>${escapeHtml(d.comment || '')}</td>`;
+                    tb.appendChild(tr);
+                });
+                host.appendChild(table);
+                host.appendChild(el('div', 'spacer'));
+            });
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+        function fmtNum(v) { return (v == null || isNaN(+v)) ? '' : (+v).toString(); }
+        function escapeHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+        // boot
+        render();
+    </script>
+</body>
+</html>

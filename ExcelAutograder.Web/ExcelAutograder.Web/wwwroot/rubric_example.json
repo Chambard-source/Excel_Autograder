@@ -1,0 +1,190 @@
+{
+    "points": 5.0,
+    "sheets": {
+        "Scores": {
+            "checks": [
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "File Name matches spec (manual)"
+                },
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "Worksheets: expect 'Scores' (or 'score') + 'Backup'",
+                    "require": { "sheet": "Backup" }
+                },
+
+                {
+                    "type": "format",
+                    "points": 0.125,
+                    "cell": "A1",
+                    "note": "Header Student bold 18",
+                    "format": {
+                        "bold": true,
+                        "font": { "size": 18 }
+                    }
+                },
+                {
+                    "type": "format",
+                    "points": 0.125,
+                    "cell": "B1",
+                    "note": "Header Score bold 18",
+                    "format": {
+                        "bold": true,
+                        "font": { "size": 18 }
+                    }
+                },
+
+                {
+                    "type": "range_sequence",
+                    "points": 0.5,
+                    "range": "A2:A11",
+                    "start": 1,
+                    "step": 1,
+                    "note": "Column A is 1..10"
+                },
+                {
+                    "type": "range_numeric",
+                    "points": 0.5,
+                    "range": "B2:B11",
+                    "note": "Column B contains numbers (random ok)"
+                },
+
+                {
+                    "type": "range_format",
+                    "points": 0.25,
+                    "range": "B2:B11",
+                    "note": "Column B format 0.00",
+                    "format": { "number_format": "0.00" }
+                },
+
+                {
+                    "type": "formula",
+                    "points": 1.5,
+                    "cell": "B12",
+                    "note": "Average formula",
+                    "any_of": [
+                        { "expected_formula": "=AVERAGE(B2:B11)" },
+                        { "expected_formula": "=AVERAGE(B1:B11)" }
+                    ],
+                    "require_absolute": false
+                },
+
+                {
+                    "type": "range_format",
+                    "points": 1.0,
+                    "range": "A12:B12",
+                    "note": "Borders around A12:B12",
+                    "format": { "border": { "outline": true } }
+                },
+
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "Autofit columns (manual)"
+                },
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "Print area set (manual)"
+                }
+            ]
+        },
+
+        "score": {
+            "checks": [
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "File Name matches spec (manual)"
+                },
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "Worksheets: expect 'Scores' (or 'score') + 'Backup'",
+                    "require": { "sheet": "Backup" }
+                },
+
+                {
+                    "type": "format",
+                    "points": 0.125,
+                    "cell": "A1",
+                    "note": "Header Student bold 18",
+                    "format": {
+                        "bold": true,
+                        "font": { "size": 18 }
+                    }
+                },
+                {
+                    "type": "format",
+                    "points": 0.125,
+                    "cell": "B1",
+                    "note": "Header Score bold 18",
+                    "format": {
+                        "bold": true,
+                        "font": { "size": 18 }
+                    }
+                },
+
+                {
+                    "type": "range_sequence",
+                    "points": 0.5,
+                    "range": "A2:A11",
+                    "start": 1,
+                    "step": 1,
+                    "note": "Column A is 1..10"
+                },
+                {
+                    "type": "range_numeric",
+                    "points": 0.5,
+                    "range": "B2:B11",
+                    "note": "Column B contains numbers (random ok)"
+                },
+
+                {
+                    "type": "range_format",
+                    "points": 0.25,
+                    "range": "B2:B11",
+                    "note": "Column B format 0.00",
+                    "format": { "number_format": "0.00" }
+                },
+
+                {
+                    "type": "formula",
+                    "points": 1.5,
+                    "cell": "B12",
+                    "note": "Average formula",
+                    "any_of": [
+                        { "expected_formula": "=AVERAGE(B2:B11)" },
+                        { "expected_formula": "=AVERAGE(B1:B11)" }
+                    ],
+                    "require_absolute": false
+                },
+
+                {
+                    "type": "range_format",
+                    "points": 1.0,
+                    "range": "A12:B12",
+                    "note": "Borders around A12:B12",
+                    "format": { "border": { "outline": true } }
+                },
+
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "Autofit columns (manual)"
+                },
+                {
+                    "type": "custom_note",
+                    "points": 0.25,
+                    "note": "Print area set (manual)"
+                }
+            ]
+        }
+    },
+    "report": {
+        "include_pass_fail_column": true,
+        "include_comments": true
+    }
+}
