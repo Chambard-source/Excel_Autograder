@@ -1,0 +1,1 @@
+This is an autograder made for my TA job. This grader is able to take in a key file and generate a JSON file that contains a rubric that can then be used to grade batches of Excel files. It is limited in some procedures and is still in development.
