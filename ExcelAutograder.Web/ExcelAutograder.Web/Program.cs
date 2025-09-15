@@ -5,8 +5,7 @@ using System.Text.Json;
 var builder = WebApplication.CreateBuilder(args);
 
 // Allow large uploads (50 MB here, adjust if needed)
-builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 50 * 1024 * 1024);
-
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 500 * 1024 * 1024);
 var app = builder.Build();
 
 app.UseDefaultFiles();   // serves wwwroot/index.html

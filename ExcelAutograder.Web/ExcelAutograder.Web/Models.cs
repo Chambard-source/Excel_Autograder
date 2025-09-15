@@ -56,6 +56,7 @@ public class Rule
     [JsonPropertyName("case_sensitive")]
     public bool? CaseSensitive { get; set; }
 
+    [JsonPropertyName("chart")] public ChartSpec? Chart { get; set; }
 }
 
 
@@ -121,6 +122,28 @@ public class ConditionalFormatSpec
     [JsonPropertyName("formula2")] public string? Formula2 { get; set; }  // second formula for between/notBetween
     [JsonPropertyName("text")] public string? Text { get; set; }          // used by containsText rules
     [JsonPropertyName("fillRgb")] public string? FillRgb { get; set; }    // optional (e.g. "FFFF00"); we’ll try to match
+}
+
+public class ChartSpec
+{
+    [JsonPropertyName("sheet")] public string? Sheet { get; set; }          // optional: restrict to this sheet
+    [JsonPropertyName("name_like")] public string? NameLike { get; set; }   // optional: chart object name contains (e.g., "Chart 1")
+    [JsonPropertyName("type")] public string? Type { get; set; }            // line, column, bar, pie, scatter, area, doughnut, radar, bubble
+    [JsonPropertyName("title")] public string? Title { get; set; }          // literal title text
+    [JsonPropertyName("title_ref")] public string? TitleRef { get; set; }   // e.g., "Sheet1!$B$1" (title from cell)
+    [JsonPropertyName("legend_pos")] public string? LegendPos { get; set; } // t,r,b,l,tr (Excel’s legendPos)
+    [JsonPropertyName("data_labels")] public bool? DataLabels { get; set; } // presence of data labels
+    [JsonPropertyName("x_title")] public string? XTitle { get; set; }       // optional expected axis titles
+    [JsonPropertyName("y_title")] public string? YTitle { get; set; }
+    [JsonPropertyName("series")] public List<ChartSeriesSpec>? Series { get; set; }
+}
+
+public class ChartSeriesSpec
+{
+    [JsonPropertyName("name")] public string? Name { get; set; }            // literal
+    [JsonPropertyName("name_ref")] public string? NameRef { get; set; }     // e.g., "Sheet1!$B$1"
+    [JsonPropertyName("cat_ref")] public string? CatRef { get; set; }       // categories ref, e.g., "Sheet1!$A$2:$A$10"
+    [JsonPropertyName("val_ref")] public string? ValRef { get; set; }       // values ref,      "Sheet1!$B$2:$B$10"
 }
 
 

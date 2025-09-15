@@ -208,6 +208,10 @@
         .mono {
             font-family: ui-monospace,SFMono,Consolas,monospace
         }
+
+        #resultsCard.only-misses [data-status="pass"] {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -290,9 +294,16 @@
 
         <!-- RESULTS -->
         <div class="card stack" id="resultsCard" style="display:none">
-            <div class="hstack">
+            <div class="hstack" style="align-items:center; justify-content:space-between;">
                 <h2 style="margin:0">Results</h2>
-                <button id="btnDownloadReport" class="ghost right" title="Download the raw report as JSON">Download report</button>
+                <div class="hstack" style="gap:12px; align-items:center;">
+                    <!-- NEW -->
+                    <label class="tiny hstack" style="gap:6px; cursor:pointer;">
+                        <input id="toggleOnlyMisses" type="checkbox">
+                        <span>Show only misses</span>
+                    </label>
+                    <button id="btnDownloadReport" class="ghost right" title="Download the raw report as JSON">Download report</button>
+                </div>
             </div>
             <div id="resultsBody"></div>
         </div>
@@ -327,6 +338,31 @@
 
         const splitCSV = s => (s || '').split(',').map(x => x.trim()).filter(Boolean);
         const joinCSV = arr => (arr || []).join(', ');
+
+
+        function ensureChart(r) {
+            const c = r.chart || {};
+            const norm = {
+                sheet: c.sheet ?? null,
+                name_like: c.name_like ?? null,
+                type: c.type ?? null,            // line, column, bar, pie, scatter, area, doughnut, radar, bubble
+                title: c.title ?? null,
+                title_ref: c.title_ref ?? null,
+                legend_pos: c.legend_pos ?? null, // t,r,b,l,tr
+                data_labels: (typeof c.data_labels === 'boolean') ? c.data_labels : null,
+                x_title: c.x_title ?? null,
+                y_title: c.y_title ?? null,
+                series: Array.isArray(c.series) ? c.series.map(s => ({
+                    name: s?.name ?? null,
+                    name_ref: s?.name_ref ?? null,
+                    cat_ref: s?.cat_ref ?? null,
+                    val_ref: s?.val_ref ?? null
+                })) : []
+            };
+            r.chart = norm;   // write back normalized shape so preview is clean
+            return norm;
+        }
+
 
         function pivotValuesBlock(rule, onChange) {
             const pv = ensurePivot(rule);
@@ -364,7 +400,7 @@
 
         // ---------- builder state
         let rubric = { points: 5, report: { include_pass_fail_column: true, include_comments: true }, sheets: {} };
-        const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout', 'conditional_format'];
+        const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout', 'conditional_format', 'chart'];
         const emptyRule = (type = 'formula') => ({ type, points: 1, cell: '', range: '', note: '', tolerance: null, any_of: null, expected_from_key: null, expected: null, expected_regex: null, expected_formula: null, allow_regex: null, expected_formula_regex: null, format: null, require: null, start: null, step: null, require_absolute: null });
 
         // ---------- render
@@ -404,12 +440,8 @@
             expectedVal.placeholder = 'Expected';
             expectedVal.style.width = '220px';
             expectedVal.value = (r.expected ?? '') + '';
-            expectedVal.onchange = () => {
-                const v = expectedVal.value.trim();
-                // numbers -> Number, otherwise keep as string
-                r.expected = v === '' ? null : (/^-?\d+(?:\.\d+)?$/.test(v) ? +v : v);
-                refreshJsonPreview();
-            };
+            expectedVal.onchange = () => { r.expected = expectedVal.value || null; refreshJsonPreview(); };
+
             const exf = el('input'); exf.placeholder = 'Expected formula (=A1+...)'; exf.style.width = '220px'; exf.value = r.expected_formula ?? '';
             const regex = el('input'); regex.placeholder = 'Regex (optional)'; regex.style.width = '200px'; regex.value = r.expected_formula_regex ?? '';
             const fromKey = checkbox('From key', !!r.expected_from_key);
@@ -433,29 +465,120 @@
 
             function showFor(type) {
                 row2.innerHTML = '';
-                if (type === 'formula') { row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap, btnDup, btnDel); }
-                else if (type === 'value') {
-                    const cs = document.createElement('input');
-                    cs.type = 'checkbox';
-                    cs.checked = !!r.case_sensitive;            // hydrate from current rule
-                    cs.onchange = () => {
-                        r.case_sensitive = cs.checked;            // write to JSON (snake_case)
+                if (type === 'formula') {
+                    row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap, btnDup, btnDel);
+                } else if (type === 'value') {
+                    // ---------- helpers ----------
+                    const cast = v => (/^-?\d+(?:\.\d+)?$/.test(v) ? +v : v);
+                    const clean = s => (s ?? '').trim();
+
+                    // ensure structure
+                    r.any_of = Array.isArray(r.any_of) ? r.any_of : [];
+
+                    // ---------- main Expected (single only) ----------
+                    const mainExp = el('input');
+                    mainExp.placeholder = 'Expected (single value)';
+                    mainExp.style.width = '260px';
+
+                    // initialize from model
+                    if ((r.any_of || []).length > 0) {
+                        mainExp.value = '';          // multiple answers → expected must be null
+                        r.expected = null;
+                    } else {
+                        mainExp.value = r.expected != null ? (r.expected + '') : '';
+                    }
+
+                    // rule-level case sensitivity (kept)
+                    const csRule = document.createElement('input');
+                    csRule.type = 'checkbox';
+                    csRule.checked = !!r.case_sensitive;
+                    csRule.onchange = () => { r.case_sensitive = csRule.checked; refreshJsonPreview(); };
+
+                    // when user edits the single expected
+                    mainExp.onchange = () => {
+                        if ((r.any_of || []).length > 0) {
+                            // multiple answers exist → keep expected=null and mirror UI
+                            mainExp.value = '';
+                            r.expected = null;
+                        } else {
+                            const v = clean(mainExp.value);
+                            r.expected = v === '' ? null : cast(v);
+                        }
                         refreshJsonPreview();
                     };
 
-                    // Layout: Expected | Case sensitive | (buttons on the right)
-                    const row = el('div', 'row');
-                    row.style.gridTemplateColumns = '1fr 180px auto auto';
-                    row.style.gap = '8px';
-                    row.append(
-                        labelled(expectedVal, 'Expected'),
-                        labelled(cs, 'Case sensitive'),
+                    // ---------- any_of list (add/edit/remove) ----------
+                    const list = el('div', 'stack');
+
+                    function renderAnyOf() {
+                        list.innerHTML = '';
+                        (r.any_of || []).forEach((opt, i) => {
+                            const row = el('div', 'hstack');
+
+                            const exp = el('input');
+                            exp.placeholder = 'Alternative expected value';
+                            exp.style.width = '220px';
+                            exp.value = opt.expected != null ? (opt.expected + '') : '';
+                            exp.onchange = () => {
+                                const v = clean(exp.value);
+                                r.any_of[i].expected = v === '' ? null : cast(v);
+                                r.expected = null;   // enforce: multiple answers → expected=null
+                                mainExp.value = '';  // keep UI consistent
+                                refreshJsonPreview();
+                            };
+
+                            const cs = document.createElement('input');
+                            cs.type = 'checkbox';
+                            cs.checked = !!opt.case_sensitive;
+                            cs.onchange = () => { r.any_of[i].case_sensitive = cs.checked; refreshJsonPreview(); };
+
+                            const del = el('button', 'ghost danger', 'Remove');
+                            del.onclick = () => {
+                                r.any_of.splice(i, 1);
+                                if (r.any_of.length === 0) {
+                                    // with none left, allow single expected again (do not auto-fill)
+                                    r.expected = clean(mainExp.value) ? cast(mainExp.value) : null;
+                                } else {
+                                    r.expected = null; // still multiple → keep null
+                                    mainExp.value = '';
+                                }
+                                renderAnyOf();
+                                refreshJsonPreview();
+                            };
+
+                            row.append(labelled(exp, 'Answer'), labelled(cs, 'Case sensitive'), del);
+                            list.append(row);
+                        });
+                    }
+
+                    const addAlt = el('button', 'ghost', 'Add answer');
+                    addAlt.onclick = () => {
+                        (r.any_of = r.any_of || []).push({ expected: null });
+                        r.expected = null;   // enforce shape
+                        mainExp.value = '';  // single box disabled visually
+                        renderAnyOf();
+                        refreshJsonPreview();
+                    };
+
+                    // Duplicate / Remove rule (kept)
+                    const btnDup = el('button', 'ghost', 'Duplicate');
+                    const btnDel = el('button', 'ghost danger', 'Remove');
+                    btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+                    btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+
+                    // layout
+                    row2.append(
+                        labelled(mainExp, 'Expected (single)'),
+                        labelled(csRule, 'Case sensitive'),
                         btnDup,
                         btnDel
                     );
+                    b.append(row2, el('div', 'tiny muted', 'Any of these answers (optional):'), list, addAlt);
 
-                    row2.append(row);
+                    renderAnyOf();
+                    refreshJsonPreview();
                 }
+
                 else if (type === 'format' || type === 'range_format') { row2.append(labelled(numFmt, 'Number format'), btnDup, btnDel); }
                 else if (type === 'range_sequence') { row2.append(labelled(start, 'Start'), labelled(step, 'Step'), btnDup, btnDel); }
                 else if (type === 'pivot_layout') {
@@ -613,6 +736,93 @@
 
                     // IMPORTANT: call toggle AFTER appending to DOM so display changes take effect
                     toggle();
+                } else if (type === 'chart') {
+                    const ch = ensureChart(r);
+
+                    // left column controls
+                    const cSheet = el('input'); cSheet.placeholder = 'Sheet (optional)'; cSheet.style.width = '200px'; cSheet.value = ch.sheet ?? '';
+                    const cName = el('input'); cName.placeholder = 'Chart name contains'; cName.style.width = '260px'; cName.value = ch.name_like ?? '';
+                    const cType = el('select');['', 'column', 'bar', 'line', 'pie', 'pie3D', 'scatter', 'area', 'doughnut', 'radar', 'bubble']
+                        .forEach(v => { const o = el('option'); o.value = v; o.textContent = v || '(any type)'; if ((ch.type || '') === v) o.selected = true; cType.append(o); });
+
+                    const cTitle = el('input'); cTitle.placeholder = 'Title text (exact)'; cTitle.value = ch.title ?? '';
+                    const cTitleRef = el('input'); cTitleRef.placeholder = 'Title from cell (e.g., Summary!$B$1)'; cTitleRef.value = ch.title_ref ?? '';
+                    const cLegend = el('select');[['', '(any)'], ['t', 'top'], ['r', 'right'], ['b', 'bottom'], ['l', 'left'], ['tr', 'top-right']]
+                        .forEach(([v, l]) => { const o = el('option'); o.value = v; o.textContent = l; if ((ch.legend_pos || '') === v) o.selected = true; cLegend.append(o); });
+                    const cLabels = document.createElement('input'); cLabels.type = 'checkbox'; cLabels.checked = ch.data_labels === true;
+                    const cX = el('input'); cX.placeholder = 'X-axis title'; cX.value = ch.x_title ?? '';
+                    const cY = el('input'); cY.placeholder = 'Y-axis title'; cY.value = ch.y_title ?? '';
+
+                    // series editor
+                    const seriesWrap = el('div', 'stack');
+                    function renderSeries() {
+                        seriesWrap.innerHTML = '';
+                        (ch.series || []).forEach((s, i) => {
+                            const row = el('div', 'hstack');
+                            const sName = el('input'); sName.placeholder = 'Series name (text)'; sName.style.width = '180px'; sName.value = s.name ?? '';
+                            const sNameRef = el('input'); sNameRef.placeholder = 'Series name ref (e.g., Sheet!$B$1)'; sNameRef.style.width = '200px'; sNameRef.value = s.name_ref ?? '';
+                            const sCat = el('input'); sCat.placeholder = 'Categories ref (e.g., Sheet!$A$2:$A$13)'; sCat.style.width = '260px'; sCat.value = s.cat_ref ?? '';
+                            const sVal = el('input'); sVal.placeholder = 'Values ref (e.g., Sheet!$B$2:$B$13)'; sVal.style.width = '260px'; sVal.value = s.val_ref ?? '';
+                            const del = el('button', 'ghost danger', 'Remove');
+
+                            sName.onchange = () => { ch.series[i].name = sName.value.trim() || null; refreshJsonPreview(); };
+                            sNameRef.onchange = () => { ch.series[i].name_ref = sNameRef.value.trim() || null; refreshJsonPreview(); };
+                            sCat.onchange = () => { ch.series[i].cat_ref = sCat.value.trim() || null; refreshJsonPreview(); };
+                            sVal.onchange = () => { ch.series[i].val_ref = sVal.value.trim() || null; refreshJsonPreview(); };
+                            del.onclick = () => { ch.series.splice(i, 1); renderSeries(); refreshJsonPreview(); };
+
+                            row.append(labelled(sName, 'Name'), labelled(sNameRef, 'Name ref'), labelled(sCat, 'Categories'), labelled(sVal, 'Values'), del);
+                            seriesWrap.append(row);
+                        });
+                    }
+                    renderSeries();
+
+                    const addSeries = el('button', 'ghost', '+ Add series');
+                    addSeries.onclick = () => { (ch.series = ch.series || []).push({ name: null, name_ref: null, cat_ref: null, val_ref: null }); renderSeries(); refreshJsonPreview(); };
+
+                    // save handlers
+                    cSheet.onchange = () => { ch.sheet = cSheet.value.trim() || null; refreshJsonPreview(); };
+                    cName.onchange = () => { ch.name_like = cName.value.trim() || null; refreshJsonPreview(); };
+                    cType.onchange = () => { ch.type = cType.value || null; refreshJsonPreview(); };
+                    cTitle.onchange = () => { ch.title = cTitle.value.trim() || null; refreshJsonPreview(); };
+                    cTitleRef.onchange = () => { ch.title_ref = cTitleRef.value.trim() || null; refreshJsonPreview(); };
+                    cLegend.onchange = () => { ch.legend_pos = cLegend.value || null; refreshJsonPreview(); };
+                    cLabels.onchange = () => { ch.data_labels = cLabels.checked ? true : null; refreshJsonPreview(); };
+                    cX.onchange = () => { ch.x_title = cX.value.trim() || null; refreshJsonPreview(); };
+                    cY.onchange = () => { ch.y_title = cY.value.trim() || null; refreshJsonPreview(); };
+
+                    // layout (two columns to keep it neat)
+                    const left = el('div', 'stack');
+                    left.append(
+                        labelled(cSheet, 'Sheet'),
+                        labelled(cName, 'Name contains'),
+                        labelled(cType, 'Chart type'),
+                        labelled(cLegend, 'Legend position'),
+                        labelled(cLabels, 'Data labels')
+                    );
+
+                    const right = el('div', 'stack');
+                    right.append(
+                        labelled(cTitle, 'Title'),
+                        labelled(cTitleRef, 'Title (from cell)'),
+                        labelled(cX, 'X-axis title'),
+                        labelled(cY, 'Y-axis title')
+                    );
+
+                    const grid = el('div', 'row');
+                    grid.style.gridTemplateColumns = '1fr 1fr';
+                    grid.style.gap = '12px';
+                    grid.append(left, right);
+
+                    row2.append(grid);
+                    b.append(row2, el('div', 'tiny muted', 'Series (categories/values required for each):'), seriesWrap, addSeries);
+
+                    // Duplicate / Remove buttons
+                    const btnDup = el('button', 'ghost', 'Duplicate');
+                    const btnDel = el('button', 'ghost danger', 'Remove');
+                    btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+                    btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+                    row2.append(btnDup, btnDel);
                 } else {
                     // fallback
                     const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
@@ -621,7 +831,7 @@
                     row2.append(btnDup, btnDel);
                 }
             }
-            
+
             showFor(r.type); b.append(row2);
 
             typeSel.onchange = () => { r.type = typeSel.value; showFor(r.type); refreshJsonPreview(); };
@@ -692,70 +902,154 @@
         // ---------- grading
         $('#btnGradeWithFile').onclick = async () => {
             try {
-                const key = $('#keyFile').files[0], rub = $('#rubricFile').files[0], studs = $('#studentFiles').files;
-                if (!key || !rub || !studs.length) { alert('Pick a key, a rubric file, and at least one student workbook.'); return; }
-                const fd = new FormData(); fd.append('key', key); fd.append('rubric', rub); for (const f of studs) fd.append('students', f);
-                const res = await fetch('/api/grade', { method: 'POST', body: fd }); const txt = await res.text();
+                const key = $('#keyFile').files[0];
+                const rub = $('#rubricFile').files[0];
+                const studs = $('#studentFiles').files;
+                if (!key || !rub || !studs.length) {
+                    alert('Pick a key, a rubric file, and at least one student workbook.');
+                    return;
+                }
+
+                const fd = new FormData();
+                fd.append('key', key);
+                fd.append('rubric', rub);
+                for (const f of studs) fd.append('students', f);
+
+                const res = await fetch('/api/grade', { method: 'POST', body: fd });
+                const txt = await res.text();
+                if (!res.ok) { alert(txt || `HTTP ${res.status}`); return; }   // << important
                 showReport(txt);
             } catch (err) { console.error(err); alert('Grade failed'); }
         };
+
         $('#btnGradeWithJson').onclick = async () => {
             try {
-                const key = $('#keyFile').files[0], studs = $('#studentFiles').files;
-                if (!key || !studs.length) { alert('Pick a key and at least one student workbook.'); return; }
-                // IMPORTANT: send exactly what’s in the preview box
+                const key = $('#keyFile').files[0];
+                const studs = $('#studentFiles').files;
+                if (!key || !studs.length) {
+                    alert('Pick a key and at least one student workbook.');
+                    return;
+                }
+
+                // send exactly what's in the preview box
                 const jsonBlob = new Blob([$('#jsonBox').value], { type: 'application/json' });
-                const fd = new FormData(); fd.append('key', key); fd.append('rubricJson', jsonBlob, 'rubric.json'); for (const f of studs) fd.append('students', f);
-                const res = await fetch('/api/grade', { method: 'POST', body: fd }); const txt = await res.text();
+                const fd = new FormData();
+                fd.append('key', key);
+                fd.append('rubricJson', jsonBlob, 'rubric.json');
+                for (const f of studs) fd.append('students', f);
+
+                const res = await fetch('/api/grade', { method: 'POST', body: fd });
+                const txt = await res.text();
+                if (!res.ok) { alert(txt || `HTTP ${res.status}`); return; }   // << important
                 showReport(txt);
             } catch (err) { console.error(err); alert('Grade failed'); }
         };
+
+
 
         // ---------- results viewer
         let lastReportRaw = '';
         $('#btnDownloadReport').onclick = () => { if (!lastReportRaw) { alert('Nothing to download yet.'); return; } download('report.json', lastReportRaw); };
 
         function showReport(text) {
-            lastReportRaw = text || '';
-            const host = $('#resultsBody');
-            $('#resultsCard').style.display = 'block';
-            host.innerHTML = '';
-            let json = null; try { json = JSON.parse(text); } catch { }
-            let rows;
-            if (Array.isArray(json)) rows = json;
-            else if (json && Array.isArray(json.results)) rows = json.results;
-            else if (json && typeof json === 'object') rows = [json];
-            else { host.appendChild(el('pre', 'mono', (text || '').replace(/</g, '&lt;'))); return; }
+            let data;
+            try { data = JSON.parse(text); } catch { alert('Bad JSON from server'); return; }
+            lastReportRaw = text;
 
-            rows.forEach((row, idx) => {
-                const grade = row.details ? row : (row.grade || {});
-                const details = grade.details || [];
-                const scoreText = grade.score_out_of_total ||
-                    (grade.score_numeric != null && grade.total_points != null ? `${grade.score_numeric}/${grade.total_points}` : '') || '';
-                const title = el('div', 'hstack',
-                    `<div class="pill mono">${escapeHtml(row.student || ('Student #' + (idx + 1)))}</div>
-                 <div class="pill">Score: <span class="mono">${escapeHtml(scoreText)}</span></div>`);
-                host.appendChild(title);
+            // Normalize rows from several possible shapes
+            let rows = [];
+            if (Array.isArray(data)) rows = data;
+            else if (Array.isArray(data.students)) rows = data.students;
+            else if (Array.isArray(data.results)) rows = data.results;
 
-                const table = el('table');
-                table.innerHTML = `<thead><tr><th>Check</th><th class="mono">Pts</th><th class="mono">Earned</th><th>Status</th><th>Comment</th></tr></thead><tbody></tbody>`;
-                const tb = table.querySelector('tbody');
+            const body = document.getElementById('resultsBody');
+            body.innerHTML = '';
 
-                details.forEach(d => {
-                    const tr = el('tr');
-                    tr.innerHTML =
-                        `<td class="mono">${escapeHtml(d.check || '')}</td>
-                   <td class="mono">${fmtNum(d.points)}</td>
-                   <td class="mono">${fmtNum(d.earned)}</td>
-                   <td>${d.passed ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
-                   <td>${escapeHtml(d.comment || '')}</td>`;
+            if (!rows.length) {
+                const card = el('div', 'card', '<div class="muted">No results to show.</div>');
+                body.appendChild(card);
+                document.getElementById('resultsCard').style.display = '';
+                return;
+            }
+
+            for (const r of rows) {
+                // Support error rows: { student, error }
+                if (r && r.error && (r.student || r.name)) {
+                    const card = el('div', 'card');
+                    const hdr = el('div', 'hstack');
+                    hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
+                                                           <span class="tag fail">FAIL</span>
+                                                           <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                    card.appendChild(hdr);
+                    body.appendChild(card);
+                    continue;
+                }
+
+                // Unwrap nested shape { student, grade }
+                const isNested = r && typeof r.grade === 'object';
+                const grade = isNested ? r.grade : r;
+
+                const name = isNested ? (r.student ?? r.name ?? 'Student') : (grade.name ?? r.student ?? 'Student');
+                const points = grade.total_points ?? grade.points ?? grade.Points ?? 0;
+                const earned = grade.score_numeric ?? grade.earned ?? grade.Earned ?? 0;
+                const passed = (grade.passed ?? grade.Passed);
+                const passBool = typeof passed === 'boolean' ? passed : (Number(earned) >= Number(points));
+
+                const card = el('div', 'card');
+                const hdr = el('div', 'hstack');
+                hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
+                                                         <span class="tag ${passBool ? 'pass' : 'fail'}">${passBool ? 'PASS' : 'FAIL'}</span>
+                                                         <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                card.appendChild(hdr);
+
+                const details = grade.details ?? grade.Details ?? [];
+                const tbl = el('table');
+                const thead = el('thead');
+                thead.innerHTML = `<tr>
+                                            <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                                          </tr>`;
+                tbl.appendChild(thead);
+
+                const tb = document.createElement('tbody');
+                for (const d of details) {
+                    const ok = (d.passed ?? d.Passed);
+                    const okBool = typeof ok === 'boolean' ? ok : (Number(d.earned) >= Number(d.points));
+                    const tr = document.createElement('tr');
+                    tr.dataset.status = okBool ? 'pass' : 'fail';
+                    tr.innerHTML = `
+                                            <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+                                            <td class="mono">${fmtNum(d.points)}</td>
+                                            <td class="mono">${fmtNum(d.earned)}</td>
+                                            <td>${okBool ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
+                                            <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
                     tb.appendChild(tr);
-                });
-                host.appendChild(table);
-                host.appendChild(el('div', 'spacer'));
-            });
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                }
+                tbl.appendChild(tb);
+                card.appendChild(tbl);
+                body.appendChild(card);
+            }
+
+            // Respect “Show only misses” toggle
+            const on = localStorage.getItem('onlyMisses') === '1' || document.getElementById('toggleOnlyMisses')?.checked;
+            document.getElementById('resultsCard').classList.toggle('only-misses', !!on);
+
+            document.getElementById('resultsCard').style.display = '';
+            window.scrollTo({ top: document.getElementById('resultsCard').offsetTop - 10, behavior: 'smooth' });
         }
+
+
+        const toggleOnlyMisses = document.getElementById('toggleOnlyMisses');
+        if (toggleOnlyMisses) {
+            const saved = localStorage.getItem('onlyMisses') === '1';
+            toggleOnlyMisses.checked = saved;
+            toggleOnlyMisses.addEventListener('change', () => {
+                localStorage.setItem('onlyMisses', toggleOnlyMisses.checked ? '1' : '0');
+                document.getElementById('resultsCard').classList.toggle('only-misses', toggleOnlyMisses.checked);
+            });
+        }
+
+
+
         function fmtNum(v) { return (v == null || isNaN(+v)) ? '' : (+v).toString(); }
         function escapeHtml(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 

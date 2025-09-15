@@ -89,6 +89,7 @@ public static class Grader
             "custom_note" => GradeCustomNote(rule, wbS),
             "range_sequence" => GradeRangeSequence(rule, wsS),
             "range_numeric" => GradeRangeNumeric(rule, wsS),
+            "chart" => GradeChart(rule, wbS),
             "pivot_layout" => GradePivotLayout(rule, wbS),
             "conditional_format" => GradeConditionalFormat(rule, wbS),
 
@@ -485,6 +486,322 @@ public static class Grader
         double frac = (double)correct / total;
         return new CheckResult($"range_numeric:{refRange}", pts, pts * frac,
             Math.Abs(frac - 1.0) < 1e-9, $"{correct}/{total} numeric (blanks ignored)");
+    }
+
+    // =====================
+    // CHART TABLE
+    // =====================
+    private class ChartInfo
+    {
+        public string Sheet = "";
+        public string Name = "";                // "Chart 1", etc.
+        public string Type = "";                // normalized: line/column/bar/pie/scatter/area/doughnut/radar/bubble
+        public string? Title, TitleRef;
+        public string? LegendPos;
+        public bool DataLabels;
+        public string? XTitle, YTitle;
+        public List<SeriesInfo> Series = new();
+    }
+    private class SeriesInfo
+    {
+        public string? Name, NameRef, CatRef, ValRef;
+    }
+
+    private static CheckResult GradeChart(Rule rule, XLWorkbook wbS)
+    {
+        var pts = rule.Points;
+        var spec = rule.Chart;
+        if (spec is null)
+            return new CheckResult("chart", pts, 0, false, "No chart spec provided");
+
+        if (_studentZipBytes is null)
+            return new CheckResult("chart", pts, 0, false, "Chart checks require workbook bytes");
+
+        var bySheet = ParseChartsFromZip(_studentZipBytes);  // sheet -> charts
+        IEnumerable<ChartInfo> pool = bySheet.SelectMany(kv => kv.Value);
+        if (!string.IsNullOrWhiteSpace(spec.Sheet))
+            pool = pool.Where(c => string.Equals(c.Sheet, spec.Sheet, StringComparison.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrWhiteSpace(spec.NameLike))
+            pool = pool.Where(c => c.Name.IndexOf(spec.NameLike!, StringComparison.OrdinalIgnoreCase) >= 0);
+
+        // Scoring: each declared attribute is a "check".
+        int checks = 0, hits = 0;
+        var notes = new List<string>();
+
+        ChartInfo? best = null;
+        double bestScore = -1;
+
+        foreach (var ch in pool)
+        {
+            int cks = 0, ok = 0;
+            void req(bool cond, string okMsg, string badMsg)
+            { cks++; if (cond) { ok++; notes.Add($"{ch.Name}: {okMsg}"); } else notes.Add($"{ch.Name}: {badMsg}"); }
+
+            // type
+            if (!string.IsNullOrWhiteSpace(spec.Type))
+                req(string.Equals(ch.Type, spec.Type, StringComparison.OrdinalIgnoreCase),
+                    $"type={ch.Type}", $"type got {ch.Type} expected {spec.Type}");
+
+            // title
+            if (!string.IsNullOrWhiteSpace(spec.Title))
+                req(string.Equals((ch.Title ?? ""), spec.Title, StringComparison.Ordinal),
+                    $"title='{ch.Title}'", $"title got '{ch.Title ?? ""}' expected '{spec.Title}'");
+            if (!string.IsNullOrWhiteSpace(spec.TitleRef))
+                req(string.Equals((ch.TitleRef ?? ""), spec.TitleRef, StringComparison.OrdinalIgnoreCase),
+                    $"title_ref={ch.TitleRef}", $"title_ref got {ch.TitleRef ?? ""} expected {spec.TitleRef}");
+
+            // legend
+            if (!string.IsNullOrWhiteSpace(spec.LegendPos))
+                req(string.Equals((ch.LegendPos ?? ""), spec.LegendPos, StringComparison.OrdinalIgnoreCase),
+                    $"legendPos={ch.LegendPos}", $"legendPos got {ch.LegendPos ?? ""} expected {spec.LegendPos}");
+
+            // data labels
+            if (spec.DataLabels.HasValue)
+                req(ch.DataLabels == spec.DataLabels.Value,
+                    $"dataLabels={ch.DataLabels}", $"dataLabels got {ch.DataLabels} expected {spec.DataLabels}");
+
+            // axis titles
+            if (!string.IsNullOrWhiteSpace(spec.XTitle))
+                req(string.Equals((ch.XTitle ?? ""), spec.XTitle, StringComparison.Ordinal),
+                    $"xTitle='{ch.XTitle}'", $"xTitle got '{ch.XTitle ?? ""}' expected '{spec.XTitle}'");
+            if (!string.IsNullOrWhiteSpace(spec.YTitle))
+                req(string.Equals((ch.YTitle ?? ""), spec.YTitle, StringComparison.Ordinal),
+                    $"yTitle='{ch.YTitle}'", $"yTitle got '{ch.YTitle ?? ""}' expected '{spec.YTitle}'");
+
+            // series: every specified expected series must be present (match by CatRef+ValRef, optionally name/nameRef)
+            if (spec.Series is { Count: > 0 })
+            {
+                foreach (var exp in spec.Series)
+                {
+                    cks++;
+                    bool found = ch.Series.Any(s =>
+                        (string.IsNullOrWhiteSpace(exp.CatRef) || string.Equals((s.CatRef ?? ""), exp.CatRef, StringComparison.OrdinalIgnoreCase)) &&
+                        (string.IsNullOrWhiteSpace(exp.ValRef) || string.Equals((s.ValRef ?? ""), exp.ValRef, StringComparison.OrdinalIgnoreCase)) &&
+                        (string.IsNullOrWhiteSpace(exp.Name) || string.Equals((s.Name ?? ""), exp.Name, StringComparison.Ordinal)) &&
+                        (string.IsNullOrWhiteSpace(exp.NameRef) || string.Equals((s.NameRef ?? ""), exp.NameRef, StringComparison.OrdinalIgnoreCase))
+                    );
+                    if (found) { ok++; notes.Add($"{ch.Name}: series ok ({exp.CatRef} / {exp.ValRef})"); }
+                    else notes.Add($"{ch.Name}: series missing ({exp.CatRef} / {exp.ValRef})");
+                }
+            }
+
+            // choose best chart (most hits)
+            double score = (cks == 0) ? 0 : (double)ok / cks;
+            if (score > bestScore) { bestScore = score; best = ch; checks = cks; hits = ok; }
+        }
+
+        if (best == null)
+            return new CheckResult("chart", pts, 0, false, "No charts matched the selection pool");
+
+        double earned = (checks == 0) ? 0 : pts * (double)hits / checks;
+        bool pass = hits == checks;
+        return new CheckResult($"chart:{best.Sheet}/{best.Name}", pts, earned, pass,
+            $"matched {hits}/{checks} checks; type={best.Type}; title='{best.Title ?? ""}'");
+    }
+
+    // Parse charts via OOXML
+    private static Dictionary<string, List<ChartInfo>> ParseChartsFromZip(byte[] zipBytes)
+    {
+        using var ms = new MemoryStream(zipBytes);
+        using var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true);
+        XNamespace a = "http://schemas.openxmlformats.org/drawingml/2006/main";
+        XNamespace c = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+        XNamespace xdr = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+        XNamespace rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        XNamespace nsMain = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        XNamespace pkg = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+        string ReadEntryText(string path)
+        {
+            var e = zip.GetEntry(path);
+            if (e == null) return "";
+            using var s = e.Open();
+            using var r = new StreamReader(s);
+            return r.ReadToEnd();
+        }
+
+        // Map sheet index → name (1-based like sheet1.xml, …)
+        var wb = XDocument.Parse(ReadEntryText("xl/workbook.xml"));
+        var sheetIndexToName = new Dictionary<int, string>();
+        int idx = 1;
+        var sheetsEl = wb.Root?.Element(nsMain + "sheets");
+        if (sheetsEl != null)
+            foreach (var sh in sheetsEl.Elements(nsMain + "sheet"))
+                sheetIndexToName[idx++] = (string?)sh.Attribute("name") ?? $"Sheet{idx - 1}";
+
+        var result = new Dictionary<string, List<ChartInfo>>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 1; i <= sheetIndexToName.Count; i++)
+        {
+            var sheetName = sheetIndexToName[i];
+            var relsPath = $"xl/worksheets/_rels/sheet{i}.xml.rels";
+            var relsTxt = ReadEntryText(relsPath);
+            if (string.IsNullOrEmpty(relsTxt)) continue;
+
+            var relsDoc = XDocument.Parse(relsTxt);
+            var drawingTargets = relsDoc.Root?
+                 .Elements(pkg + "Relationship")
+                 .Where(r => ((string?)r.Attribute("Type"))?.EndsWith("/drawing") == true)
+                 .Select(r => ((string?)r.Attribute("Target"))?.TrimStart('/').Replace("../", "xl/"))
+                 .Where(t => !string.IsNullOrWhiteSpace(t))
+                 .ToList() ?? new List<string>();
+
+            foreach (var drawingRelTarget in drawingTargets)
+            {
+                // Normalize path like "../drawings/drawing1.xml"
+                var drPath = drawingRelTarget!.StartsWith("xl/") ? drawingRelTarget! : $"xl/{drawingRelTarget}";
+                var drXmlTxt = ReadEntryText(drPath);
+
+                if (string.IsNullOrEmpty(drXmlTxt)) continue;
+
+                var drXml = XDocument.Parse(drXmlTxt);
+                // Build a map: r:id -> frame name ("Chart 1", "Chart 2", …)
+                var frameMap = drXml.Descendants(xdr + "graphicFrame")
+                    .Select(gf => new {
+                        Name = gf.Element(xdr + "nvGraphicFramePr")?.Element(xdr + "cNvPr")?.Attribute("name")?.Value,
+                        Rid = gf.Descendants(a + "graphicData").Descendants(c + "chart")
+                                 .FirstOrDefault()?.Attribute(rel + "id")?.Value
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Rid))
+                    .ToDictionary(x => x.Rid!, x => x.Name ?? "Chart", StringComparer.OrdinalIgnoreCase);
+
+                string drRelsPath = drPath.Replace("xl/drawings/", "xl/drawings/_rels/") + ".rels";
+                var drRelsTxt = ReadEntryText(drRelsPath);
+                if (string.IsNullOrEmpty(drRelsTxt)) continue;
+                var drRels = XDocument.Parse(drRelsTxt);
+
+                // For each <xdr:graphicFrame> → <c:chart r:id="...">
+                var chartIds = drXml.Descendants(xdr + "graphicFrame")
+                    .Select(gf => gf.Descendants(a + "graphicData").Descendants(c + "chart").FirstOrDefault())
+                    .Where(ch => ch != null)
+                    .Select(ch => (string?)ch!.Attribute(rel + "id"))
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .ToList();
+
+                // Resolve r:id → charts/chartN.xml
+                foreach (var rid in chartIds)
+                {
+                    var target = drRels.Root?
+                        .Elements(pkg + "Relationship")
+                        .FirstOrDefault(r => (string?)r.Attribute("Id") == rid)?
+                        .Attribute("Target")?.Value;
+
+                    if (string.IsNullOrWhiteSpace(target)) continue;
+
+                    var tgt = (target ?? "").Replace("\\", "/");
+                    var chartPath = tgt.StartsWith("/") ? tgt.TrimStart('/')
+                                 : tgt.StartsWith("../") ? "xl/" + tgt.Substring(3)
+                                 : tgt.StartsWith("xl/") ? tgt : "xl/" + tgt;
+
+                    var chXmlTxt = ReadEntryText(chartPath);
+
+                    if (string.IsNullOrEmpty(chXmlTxt)) continue;
+
+                    var chXml = XDocument.Parse(chXmlTxt);
+                    var chart = new ChartInfo { Sheet = sheetName };
+
+                    // correct name per rid
+                    chart.Name = frameMap.TryGetValue(rid!, out var nm) ? nm : "Chart";
+
+                    // detect type, then read title/legend/series...
+                    var plotArea = chXml.Descendants(c + "plotArea").FirstOrDefault();
+                    chart.Type = DetectChartType(plotArea);
+
+                    // Title
+                    var titleEl = chXml.Descendants(c + "title").FirstOrDefault();
+                    (chart.Title, chart.TitleRef) = ReadChartText(titleEl, c, a);
+
+                    // Axis titles (cat/val axes)
+                    var catAx = plotArea?.Elements(c + "catAx").FirstOrDefault();
+                    var valAx = plotArea?.Elements(c + "valAx").FirstOrDefault();
+                    (chart.XTitle, _) = ReadChartText(catAx?.Element(c + "title"), c, a);
+                    (chart.YTitle, _) = ReadChartText(valAx?.Element(c + "title"), c, a);
+
+                    // Legend
+                    var leg = chXml.Descendants(c + "legend").FirstOrDefault();
+                    chart.LegendPos = leg?.Element(c + "legendPos")?.Attribute("val")?.Value;
+                    chart.DataLabels = plotArea?.Descendants(c + "dLbls").Any() == true;
+
+                    // Series
+                    foreach (var ser in plotArea?.Descendants().Where(e => e.Name.LocalName == "ser") ?? Enumerable.Empty<XElement>())
+                    {
+                        var si = new SeriesInfo();
+                        // name (tx)
+                        var tx = ser.Element(c + "tx");
+                        (si.Name, si.NameRef) = ReadChartText(tx, c, a);
+
+                        // categories (cat)
+                        var cat = ser.Element(c + "cat");
+                        si.CatRef = cat?.Element(c + "strRef")?.Element(c + "f")?.Value
+                                    ?? cat?.Element(c + "numRef")?.Element(c + "f")?.Value;
+
+                        // values (val)
+                        var val = ser.Element(c + "val");
+                        si.ValRef = val?.Element(c + "numRef")?.Element(c + "f")?.Value
+                                    ?? val?.Element(c + "strRef")?.Element(c + "f")?.Value;
+
+                        chart.Series.Add(si);
+                    }
+
+                    if (!result.TryGetValue(sheetName, out var list)) result[sheetName] = list = new();
+                    list.Add(chart);
+                }
+            }
+        }
+
+        return result;
+
+        // helpers
+        static (string? txt, string? cellRef) ReadChartText(XElement? node, XNamespace cns, XNamespace ans)
+        {
+            if (node == null) return (null, null);
+
+            // Accept either <c:title>/<c:tx>… or being passed <c:tx> directly
+            var tx = node.Name.LocalName == "tx" ? node : node.Element(cns + "tx");
+            if (tx == null) return (null, null);
+
+            var rich = tx.Element(cns + "rich");
+            if (rich != null)
+            {
+                var text = string.Concat(rich.Descendants(ans + "t").Select(t => t.Value));
+                return (text, null);
+            }
+
+            var strRef = tx.Element(cns + "strRef");
+            var f = strRef?.Element(cns + "f")?.Value;
+            return (null, f);
+        }
+
+
+        static string DetectChartType(XElement? plotArea)
+        {
+            if (plotArea == null) return "";
+            XNamespace cc = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+            XElement? Find(string name) =>
+                plotArea.Element(cc + name) ?? plotArea.Element(plotArea.GetDefaultNamespace() + name);
+
+            // Column/Bar share barChart + barDir
+            if (Find("barChart") is XElement bc)
+            {
+                var dirEl = bc.Element(cc + "barDir") ?? bc.Element(plotArea.GetDefaultNamespace() + "barDir");
+                var dir = (string?)dirEl?.Attribute("val");
+                return string.Equals(dir, "col", StringComparison.OrdinalIgnoreCase) ? "column" : "bar";
+            }
+
+            if (Find("lineChart") != null) return "line";
+            if (Find("pieChart") != null) return "pie";
+            if (Find("pie3DChart") != null) return "pie3D";     // 3-D pie
+            if (Find("ofPieChart") != null) return "pie";        // “Pie of Pie” → count as pie
+            if (Find("scatterChart") != null) return "scatter";
+            if (Find("areaChart") != null) return "area";
+            if (Find("doughnutChart") != null) return "doughnut";
+            if (Find("radarChart") != null) return "radar";
+            if (Find("bubbleChart") != null) return "bubble";
+            return "";
+        }
+
     }
 
     // =====================
@@ -1079,6 +1396,28 @@ public static class Grader
         };
         return DescribeCond(s);
     }
+
+    private static string DetectChartType(System.Xml.Linq.XElement? plotArea, System.Xml.Linq.XNamespace c)
+    {
+        if (plotArea == null) return "";
+        if (plotArea.Element(c + "bar3DChart") != null)
+            return string.Equals(plotArea.Element(c + "bar3DChart")?.Element(c + "barDir")?.Attribute("val")?.Value, "col", StringComparison.OrdinalIgnoreCase) ? "column3D" : "bar3D";
+        var bar = plotArea.Element(c + "barChart");
+        if (bar != null)
+            return string.Equals(bar.Element(c + "barDir")?.Attribute("val")?.Value, "col", StringComparison.OrdinalIgnoreCase) ? "column" : "bar";
+        if (plotArea.Element(c + "line3DChart") != null) return "line3D";
+        if (plotArea.Element(c + "area3DChart") != null) return "area3D";
+        if (plotArea.Element(c + "pie3DChart") != null) return "pie3D";
+        if (plotArea.Element(c + "pieChart") != null) return "pie";
+        if (plotArea.Element(c + "areaChart") != null) return "area";
+        if (plotArea.Element(c + "lineChart") != null) return "line";
+        if (plotArea.Element(c + "scatterChart") != null) return "scatter";
+        if (plotArea.Element(c + "bubbleChart") != null) return "bubble";
+        if (plotArea.Element(c + "radarChart") != null) return "radar";
+        if (plotArea.Element(c + "stockChart") != null) return "stock";
+        return "";
+    }
+
 
 
     private static bool ArgbEqual(string a, string b) => NormalizeArgb(a) == NormalizeArgb(b);
