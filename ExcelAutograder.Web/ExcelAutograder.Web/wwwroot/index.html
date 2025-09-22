@@ -28,7 +28,7 @@
         }
 
         .wrap {
-            max-width: 1100px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 24px
         }
@@ -126,13 +126,92 @@
             border-radius: 10px;
             padding: 10px;
             margin: 10px 0;
-            background: #0f1520
+            background: #0f1520;
         }
 
+            /* FLEX layout for the first row */
             .rule .row {
-                grid-template-columns: 140px 1fr 1fr 1fr 1fr;
-                gap: 8px
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center; /* prevents tall stretch */
             }
+
+                /* make inputs/selects same height as the icon buttons */
+                .rule .row input[type="text"],
+                .rule .row input[type="number"],
+                .rule .row select {
+                    height: 36px;
+                    padding: 0 12px;
+                    line-height: 36px;
+                }
+
+        /* small, uniform arrow buttons (you already added .btn-icon) */
+        button.ghost.btn-icon {
+            flex: 0 0 auto;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            font-size: 16px;
+            border-radius: 8px;
+        }
+
+        /* reserve a slim column for the arrows */
+        .rule .row > div:has(> button.btn-icon) {
+            flex: 0 0 44px; /* fits the vertical pair comfortably */
+        }
+
+        /* Section width that grows but doesn’t explode */
+        .rule .row .labelled.section {
+            min-width: 260px;
+            flex: 1 0 320px;
+        }
+
+        #jsonPreview {
+            white-space: pre-wrap; /* wrap long lines */
+            word-break: break-word; /* break long tokens if needed */
+            overflow: auto; /* scroll if still too big */
+            max-height: 45vh; /* don’t get too tall */
+            width: 100%;
+            padding: 12px;
+            margin-top: 8px;
+            border: 1px solid #2b3748;
+            border-radius: 10px;
+            background: #0b111a;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 12.5px;
+        }
+
+        #jsonFilename {
+            height: 36px;
+            padding: 0 12px;
+            line-height: 36px;
+        }
+
+        .builder-card {
+            max-width: 1210px; /* pick your width: e.g., 880 / 980 / 1100 */
+            margin-inline: auto; /* center within the page wrap */
+            width: 100%;
+        }
+
+            .builder-card.collapsed #builderBody {
+                display: none;
+            }
+
+        #resultsCard {
+            max-width: 1210px; /* or 980px, etc. */
+            margin-inline: auto; /* center it */
+            width: 100%;
+        }
+
+        .section-row td {
+            background: #0e151f;
+            border-top: 2px solid #263041;
+        }
 
         .tiny {
             font-size: 12px;
@@ -212,6 +291,7 @@
         #resultsCard.only-misses [data-status="pass"] {
             display: none !important;
         }
+
     </style>
 </head>
 <body>
@@ -244,19 +324,29 @@
                 <div class="stack">
                     <label>Current Rubric JSON (preview)</label>
                     <textarea id="jsonBox" spellcheck="false"></textarea>
-                    <div class="hstack">
+                    <div class="hstack" style="gap:10px; align-items:center;">
+                        <input id="jsonFilename" placeholder="File name (e.g., HW_2_Rubric)" style="width:260px;">
                         <button id="btnDownloadJson" class="ghost">Download JSON</button>
-                        <div class="tiny">This preview is always <strong>exactly</strong> what the builder below contains.</div>
                     </div>
+                    <div class="tiny">This preview is always <strong>exactly</strong> what the builder below contains.</div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="spacer"></div>
+    <div class="spacer"></div>
 
-        <div class="card">
-            <h2 style="margin:4px 0 12px">Rubric Builder</h2>
+    <div class="card builder-card">
+        <h2 style="margin:4px 0 12px">Rubric Builder</h2>
 
+        <!-- Collapsible header (sits just above the builder controls) -->
+        <div class="hstack" style="justify-content:space-between;align-items:center;margin:6px 0 10px;">
+            <div class="tiny muted">Builder controls</div>
+            <button id="btnToggleBuilder" class="ghost">Hide builder</button>
+        </div>
+
+        <!-- Everything in the builder lives inside #builderBody so we can collapse it -->
+        <div id="builderBody">
             <div class="grid-2">
                 <div class="stack">
                     <label>Generate from Key (uses the Key file chosen above)</label>
@@ -279,6 +369,9 @@
                     </div>
                 </div>
             </div>
+
+            <!-- keep the rest of your builder content (Add Sheet, sheets list, etc.) below, still inside #builderBody -->
+
 
             <div class="hr"></div>
 
@@ -412,6 +505,42 @@
             Object.entries(rubric.sheets).forEach(([name, spec]) => host.appendChild(sheetBlock(name, spec)));
             refreshJsonPreview();
         }
+
+        document.getElementById('rubricFile').addEventListener('change', async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            try {
+                const text = await f.text();
+                const obj = JSON.parse(text);
+                rubric = obj;                // <-- replace builder state
+                render();                    // <-- redraw builder blocks
+                refreshJsonPreview();        // <-- refresh preview textarea
+            } catch (err) {
+                alert('Invalid rubric JSON: ' + (err?.message || err));
+            }
+        });
+
+        function downloadRubricJSON() {
+            const base = (document.getElementById('jsonFilename')?.value.trim() || 'rubric')
+                .replace(/\.(json)?$/i, '');
+            const name = base + '.json';
+            const blob = new Blob([JSON.stringify(collectRubric(), null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(a.href);
+        }
+
+        // Make sure refreshJsonPreview writes the *live* builder state:
+        function refreshJsonPreview() {
+            const pre = document.getElementById('jsonPreview');
+            if (pre) pre.textContent = JSON.stringify(rubric, null, 2);
+        }
+
+
         function sheetBlock(name, spec) {
             const wrap = el('div', 'sheet');
             const header = el('div', 'hstack');
@@ -426,6 +555,7 @@
             btnDup.onclick = () => { let base = name + ' Copy', i = 1, c = base; while (rubric.sheets[c]) c = `${base} ${++i}`; rubric.sheets[c] = JSON.parse(JSON.stringify(spec)); render(); };
             return wrap;
         }
+
         function ruleBlock(spec, r, idx) {
             const b = el('div', 'rule'), row1 = el('div', 'row');
             const typeSel = el('select'); RULE_TYPES.forEach(t => { const o = el('option'); o.value = t; o.textContent = t; if (t === r.type) o.selected = true; typeSel.append(o); });
@@ -433,7 +563,56 @@
             const cell = el('input'); cell.placeholder = 'e.g. B12'; cell.value = r.cell ?? '';
             const range = el('input'); range.placeholder = 'e.g. A2:B11'; range.value = r.range ?? '';
             const note = el('input'); note.placeholder = 'Note'; note.value = r.note ?? '';
-            row1.append(typeSel, labelled(pts, 'Pts'), labelled(cell, 'Cell'), labelled(range, 'Range'), labelled(note, 'Note')); b.append(row1);
+            const section = el('input');
+            section.placeholder = 'Section (optional, e.g., SUMIFS)';
+            const labelledSection = labelled(section, 'Section');
+            labelledSection.classList.add('section');
+            section.value = r.section ?? '';
+            section.onchange = () => { r.section = (section.value || '').trim() || null; refreshJsonPreview(); };
+
+            // tiny move helpers
+            const btnUp = el('button', 'ghost', '▲');   // tip: ▲/▼ are same width in most fonts
+            const btnDown = el('button', 'ghost', '▼');
+
+            btnUp.classList.add('btn-icon');
+            btnDown.classList.add('btn-icon');
+
+            btnUp.title = 'Move up';
+            btnDown.title = 'Move down';
+
+            const arrows = el('div');
+            arrows.style.display = 'flex';
+            arrows.style.flexDirection = 'column';
+            arrows.style.gap = '6px';
+            arrows.append(btnUp, btnDown);
+
+            btnUp.onclick = () => {
+                if (idx > 0) {
+                    const tmp = spec.checks[idx - 1];
+                    spec.checks[idx - 1] = spec.checks[idx];
+                    spec.checks[idx] = tmp;
+                    render();
+                }
+            };
+            btnDown.onclick = () => {
+                if (idx < spec.checks.length - 1) {
+                    const tmp = spec.checks[idx + 1];
+                    spec.checks[idx + 1] = spec.checks[idx];
+                    spec.checks[idx] = tmp;
+                    render();
+                }
+            };
+
+            row1.append(
+                arrows,
+                labelledSection,                // <-- was labelled(section, 'Section')
+                typeSel,
+                labelled(pts, 'Pts'),
+                labelled(cell, 'Cell'),
+                labelled(range, 'Range'),
+                labelled(note, 'Note')
+            );
+            b.append(row1);
 
             const row2 = el('div', 'hstack');
             const expectedVal = el('input');
@@ -466,7 +645,73 @@
             function showFor(type) {
                 row2.innerHTML = '';
                 if (type === 'formula') {
-                    row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap, btnDup, btnDel);
+                    row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap);
+
+                    // --- "any_of" support for formulas ---
+                    r.any_of = Array.isArray(r.any_of) ? r.any_of : [];
+
+                    const list = el('div', 'stack');
+                    function renderAnyOfFormula() {
+                        list.innerHTML = '';
+                        (r.any_of || []).forEach((opt, i) => {
+                            const row = el('div', 'hstack');
+
+                            const altF = el('input');
+                            altF.placeholder = 'Alternative formula (=...)';
+                            altF.style.width = '220px';
+                            altF.value = opt.expected_formula ?? '';
+                            altF.onchange = () => {
+                                r.any_of[i].expected_formula = altF.value.trim() || null;
+                                // if any alternatives exist, clear the single expected_formula
+                                if ((r.any_of || []).length > 0) {
+                                    r.expected_formula = null;
+                                    exf.value = '';
+                                }
+                                refreshJsonPreview();
+                            };
+
+                            const altRe = el('input');
+                            altRe.placeholder = 'Regex (optional)';
+                            altRe.style.width = '200px';
+                            altRe.value = opt.expected_formula_regex ?? '';
+                            altRe.onchange = () => {
+                                r.any_of[i].expected_formula_regex = altRe.value.trim() || null;
+                                refreshJsonPreview();
+                            };
+
+                            const del = el('button', 'ghost danger', 'Remove');
+                            del.onclick = () => {
+                                r.any_of.splice(i, 1);
+                                // if none left, allow the main expected_formula again (do not auto-fill)
+                                if (r.any_of.length === 0) {
+                                    r.expected_formula = (exf.value.trim() || null);
+                                } else {
+                                    r.expected_formula = null;
+                                    exf.value = '';
+                                }
+                                renderAnyOfFormula();
+                                refreshJsonPreview();
+                            };
+
+                            row.append(labelled(altF, 'Formula'), labelled(altRe, 'Regex'), del);
+                            list.append(row);
+                        });
+                    }
+                    renderAnyOfFormula();
+
+                    const addAltF = el('button', 'ghost', 'Add formula');
+                    addAltF.onclick = () => {
+                        (r.any_of = r.any_of || []).push({ expected_formula: null, expected_formula_regex: null });
+                        r.expected_formula = null;
+                        exf.value = '';
+                        renderAnyOfFormula();
+                        refreshJsonPreview();
+                    };
+
+                    const anyWrap = el('div', 'stack');
+                    anyWrap.append(el('div', 'tiny muted', 'Any of these formulas (optional):'), list, addAltF);
+
+                    row2.append(anyWrap, btnDup, btnDel);
                 } else if (type === 'value') {
                     // ---------- helpers ----------
                     const cast = v => (/^-?\d+(?:\.\d+)?$/.test(v) ? +v : v);
@@ -567,13 +812,21 @@
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
 
                     // layout
+                    const anyWrap = el('div', 'stack');
+                    anyWrap.append(
+                        el('div', 'tiny muted', 'Any of these answers (optional):'),
+                        list,
+                        addAlt
+                    );
+
                     row2.append(
                         labelled(mainExp, 'Expected (single)'),
                         labelled(csRule, 'Case sensitive'),
+                        anyWrap,
                         btnDup,
                         btnDel
                     );
-                    b.append(row2, el('div', 'tiny muted', 'Any of these answers (optional):'), list, addAlt);
+
 
                     renderAnyOf();
                     refreshJsonPreview();
@@ -850,6 +1103,8 @@
             btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
             return b;
         }
+
+
         function labelled(input, label) { const box = el('div', 'stack'); box.append(el('div', 'tiny muted', label), input); return box; }
         function checkbox(txt, checked) { const w = el('label', 'checkbox'); const c = el('input'); c.type = 'checkbox'; c.checked = checked; const s = el('span', '', txt); w.append(c, s); return { wrap: w, input: c }; }
 
@@ -870,7 +1125,36 @@
         $('#btnAddSheet').onclick = () => { let base = 'Sheet', i = 1, name = base; while (rubric.sheets[name]) name = base + ' ' + (++i); rubric.sheets[name] = { checks: [emptyRule('formula')] }; render(); };
         $('#btnClear').onclick = () => { rubric = { points: +($('#totalPoints').value || 5), report: { include_pass_fail_column: $('#optPassFail').checked, include_comments: $('#optComments').checked }, sheets: {} }; render(); };
         $('#btnGenerateJson').onclick = () => { $('#jsonBox').value = JSON.stringify(collectRubric(), null, 2); };
-        $('#btnDownloadJson').onclick = () => { download('rubric.json', JSON.stringify(collectRubric(), null, 2)); };
+        document.getElementById('btnDownloadJson')
+            ?.addEventListener('click', (e) => {
+                e.preventDefault();
+                downloadRubricJSON();
+            });
+
+        // --- Rubric Builder collapse/expand ---
+        const builderCard = document.querySelector('.builder-card') || document.getElementById('builderBody')?.closest('.card');
+        const builderBody = document.getElementById('builderBody');
+        const builderToggle = document.getElementById('btnToggleBuilder');
+
+        function setBuilderCollapsed(on) {
+            if (!builderBody) return;
+            // Prefer toggling on the card if present; fall back to inlining a style
+            builderCard?.classList.toggle('collapsed', !!on);
+            if (!builderCard) builderBody.style.display = on ? 'none' : '';
+            if (builderToggle) builderToggle.textContent = on ? 'Show builder' : 'Hide builder';
+            try { localStorage.setItem('builderCollapsed', on ? '1' : '0'); } catch { }
+        }
+
+        // init from saved preference
+        setBuilderCollapsed((localStorage.getItem('builderCollapsed') === '1'));
+
+        // click handler
+        builderToggle?.addEventListener('click', (e) => {
+            e.preventDefault();
+            const next = builderCard ? !builderCard.classList.contains('collapsed') : (builderBody.style.display !== 'none');
+            setBuilderCollapsed(next);
+        });
+
 
         // Auto-rubric from key
         async function generateFromKey() {
@@ -951,6 +1235,23 @@
         let lastReportRaw = '';
         $('#btnDownloadReport').onclick = () => { if (!lastReportRaw) { alert('Nothing to download yet.'); return; } download('report.json', lastReportRaw); };
 
+        function keyForRule(r) {
+            const loc = (r.cell && r.cell.trim()) || (r.range && r.range.trim()) || '';
+            return (r.type || 'rule') + (loc ? (':' + loc) : '');
+        }
+
+        function buildSectionIndex() {
+            const map = new Map();
+            for (const [_sheetName, spec] of Object.entries(rubric.sheets || {})) {
+                for (const rr of (spec.checks || [])) {
+                    const k = keyForRule(rr);
+                    if (k && rr.section) map.set(k, rr.section);
+                }
+            }
+            return map;
+        }
+
+
         function showReport(text) {
             let data;
             try { data = JSON.parse(text); } catch { alert('Bad JSON from server'); return; }
@@ -978,8 +1279,8 @@
                     const card = el('div', 'card');
                     const hdr = el('div', 'hstack');
                     hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
-                                                           <span class="tag fail">FAIL</span>
-                                                           <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                                                                                   <span class="tag fail">FAIL</span>
+                                                                                   <span class="muted">${escapeHtml(String(r.error))}</span>`;
                     card.appendChild(hdr);
                     body.appendChild(card);
                     continue;
@@ -998,30 +1299,62 @@
                 const card = el('div', 'card');
                 const hdr = el('div', 'hstack');
                 hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
-                                                         <span class="tag ${passBool ? 'pass' : 'fail'}">${passBool ? 'PASS' : 'FAIL'}</span>
-                                                         <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                                                                                 <span class="tag ${passBool ? 'pass' : 'fail'}">${passBool ? 'PASS' : 'FAIL'}</span>
+                                                                                 <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
                 card.appendChild(hdr);
 
                 const details = grade.details ?? grade.Details ?? [];
                 const tbl = el('table');
                 const thead = el('thead');
                 thead.innerHTML = `<tr>
-                                            <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
-                                          </tr>`;
+                                                                    <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                                                                  </tr>`;
                 tbl.appendChild(thead);
 
                 const tb = document.createElement('tbody');
+                const sectionIndex = buildSectionIndex();
+                const sectionTotals = new Map();
+
+                for (const d of details) {
+                    const sec = sectionIndex.get(String(d.check ?? d.rule ?? '')) || null;
+                    if (!sec) continue;
+                    const t = sectionTotals.get(sec) || { earned: 0, points: 0 };
+                    t.points += (+d.points || 0);
+                    t.earned += (+d.earned || 0);
+                    sectionTotals.set(sec, t);
+                }
+
+                let currentSection = null;
+
+                function maybeInsertSectionRow(sec) {
+                    if (!sec || sec === currentSection) return;
+                    currentSection = sec;
+                    const t = sectionTotals.get(sec) || { earned: 0, points: 0 };
+                    const tr = document.createElement('tr');
+                    tr.className = 'section-row';
+                    tr.innerHTML = `
+                            <td colspan="5" style="font-weight:600; padding-top:10px;">
+                              ${escapeHtml(sec)}
+                              <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+                            </td>`;
+                    tb.appendChild(tr);
+                }
+
                 for (const d of details) {
                     const ok = (d.passed ?? d.Passed);
                     const okBool = typeof ok === 'boolean' ? ok : (Number(d.earned) >= Number(d.points));
+
+                    // Insert a section header when the section changes
+                    const sec = sectionIndex.get(String(d.check ?? d.rule ?? '')) || null;
+                    maybeInsertSectionRow(sec);
                     const tr = document.createElement('tr');
                     tr.dataset.status = okBool ? 'pass' : 'fail';
                     tr.innerHTML = `
-                                            <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
-                                            <td class="mono">${fmtNum(d.points)}</td>
-                                            <td class="mono">${fmtNum(d.earned)}</td>
-                                            <td>${okBool ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
-                                            <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+                                                                    <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+                                                                    <td class="mono">${fmtNum(d.points)}</td>
+                                                                    <td class="mono">${fmtNum(d.earned)}</td>
+                                                                    <td>${okBool ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
+                                                                    <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
                     tb.appendChild(tr);
                 }
                 tbl.appendChild(tb);

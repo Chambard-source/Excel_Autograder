@@ -185,24 +185,24 @@ public static class Grader
 
         foreach (var (lit, rx, fromKey, requireAbs, origin) in Options())
         {
-            // optional: require absolute refs
-            if (requireAbs == true)
-            {
-                var abs = InspectAbsoluteRefs(sRaw);
-                if (!abs.any)
-                {
-                    reasons.Add($"needs $ absolutes ({origin})");
-                    continue;
-                }
-            }
-
             // 1) literal expected
             var litNorm = NormalizeFormula(lit ?? "");
             if (!string.IsNullOrEmpty(litNorm))
             {
                 bool ok = sNorm == litNorm;
-                if (ok) return new CheckResult($"formula:{cellAddr}", pts, pts, true,
-                    $"formula='{sNorm}' expected='{litNorm}' ({origin})");
+                if (ok)
+                {
+                    // Only enforce absolutes AFTER the formula matches
+                    if (requireAbs == true && !InspectAbsoluteRefs(sRaw).any)
+                    {
+                        return new CheckResult($"formula:{cellAddr}", pts, 0, false,
+                            $"formula correct but missing $ absolute reference(s) ({origin})");
+                    }
+
+                    return new CheckResult($"formula:{cellAddr}", pts, pts, true,
+                        $"formula='{sNorm}' expected='{litNorm}' ({origin})");
+                }
+
                 reasons.Add($"formula='{sNorm}' expected='{litNorm}' ({origin})");
                 continue;
             }
@@ -211,8 +211,18 @@ public static class Grader
             if (!string.IsNullOrWhiteSpace(rx))
             {
                 bool ok = Regex.IsMatch(sNorm, $"^{rx}$");
-                if (ok) return new CheckResult($"formula:{cellAddr}", pts, pts, true,
-                    $"formula='{sNorm}' regex='{rx}' ({origin})");
+                if (ok)
+                {
+                    if (requireAbs == true && !InspectAbsoluteRefs(sRaw).any)
+                    {
+                        return new CheckResult($"formula:{cellAddr}", pts, 0, false,
+                            $"formula correct (regex) but missing $ absolute reference(s) ({origin})");
+                    }
+
+                    return new CheckResult($"formula:{cellAddr}", pts, pts, true,
+                        $"formula='{sNorm}' regex='{rx}' ({origin})");
+                }
+
                 reasons.Add($"formula='{sNorm}' regex='{rx}' no match ({origin})");
                 continue;
             }
@@ -231,8 +241,16 @@ public static class Grader
                 var kNorm = NormalizeFormula(kRaw);
 
                 if (!string.IsNullOrEmpty(kNorm) && sNorm == kNorm)
+                {
+                    if (requireAbs == true && !InspectAbsoluteRefs(sRaw).any)
+                    {
+                        return new CheckResult($"formula:{cellAddr}", pts, 0, false,
+                            $"formula matches key but missing $ absolute reference(s) ({origin})");
+                    }
+
                     return new CheckResult($"formula:{cellAddr}", pts, pts, true,
                         $"formula='{sNorm}' expected='{kNorm}' (from key)");
+                }
 
                 reasons.Add(kc.HasFormula
                     ? $"formula='{sNorm}' expected='{kNorm}' (from key)"
@@ -240,7 +258,7 @@ public static class Grader
                 continue;
             }
 
-            // if an option had none of the above, note it
+            // If an option had none of the above, note it
             reasons.Add($"no expected provided ({origin})");
         }
 
@@ -248,6 +266,7 @@ public static class Grader
         return new CheckResult($"formula:{cellAddr}", pts, 0, false,
             string.Join(" | ", reasons));
     }
+
 
 
     // Helper (unchanged): detect absolute refs

@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ExcelAutograder.Web")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e7eef730072359b541133180c140a5b3e22e8366")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9c973b68d69db24fcb86fad2406544e041aca736")]
 [assembly: System.Reflection.AssemblyProductAttribute("ExcelAutograder.Web")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ExcelAutograder.Web")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
