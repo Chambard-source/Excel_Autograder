@@ -249,6 +249,73 @@ public static class RubricAuto
             });
         }
 
+        // 7.5) Tables on this sheet → table rules
+        foreach (var tbl in ws.Tables)
+        {
+            // header names
+            var cols = tbl.Fields
+                .Select(f => (f.Name ?? string.Empty).Trim())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToList();
+            if (cols.Count == 0) continue;
+
+            // A1 style range that includes header + data area
+            var fullRangeA1 = tbl.RangeAddress.ToStringRelative();
+
+            // body (data only) dimensions
+            var body = tbl.DataRange;
+            int bodyRows = body?.RowCount() ?? 0;
+            int bodyCols = body?.ColumnCount() ?? 0;
+
+            // capture the formatted body values (so we can optionally grade contents)
+            var bodyVals = new List<List<string>>();
+            if (body != null)
+            {
+                foreach (var r in body.Rows())
+                {
+                    var rowVals = new List<string>();
+                    foreach (var c in r.Cells())
+                        rowVals.Add(c.GetFormattedString() ?? string.Empty);
+                    bodyVals.Add(rowVals);
+                }
+            }
+
+            checks.Add(new Rule
+            {
+                Type = "table",
+                Points = 1.0,
+                Note = $"Table '{tbl.Name}' columns",
+                Table = new TableSpec
+                {
+                    Sheet = ws.Name,
+                    NameLike = tbl.Name,
+
+                    // column headers (order match optional)
+                    Columns = cols,
+                    RequireOrder = false,
+
+                    // range + dimensions
+                    RangeRef = fullRangeA1,
+                    Rows = bodyRows,
+                    Cols = bodyCols,
+
+                    // dimension flexibility defaults (UI can toggle to true)
+                    AllowExtraRows = null,
+                    AllowExtraCols = null,
+
+                    // content checks (all optional; UI can toggle BodyMatch/…)
+                    BodyMatch = null,          // if true, check contents against BodyRows
+                    BodyOrderMatters = null,   // if true, row order must match
+                    BodyCaseSensitive = null,  // if true, compare strings case-sensitively
+                    BodyTrim = true,           // trim cell text before compare
+                    BodyRows = bodyVals,       // the captured body we’ll grade against
+
+                    // “must contain at least these rows” (starts empty; UI can add)
+                    ContainsRows = new List<Dictionary<string, string>>()
+                }
+            });
+        }
+
         // 8) Pick up *all other* formulas in the used range
         var alreadyCovered = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {

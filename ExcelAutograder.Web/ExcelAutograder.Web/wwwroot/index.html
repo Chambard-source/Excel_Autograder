@@ -11,7 +11,11 @@
             --muted: #1c2430;
             --ink: #e7ecf3;
             --ink2: #b8c0cc;
-            --accent: #4aa3ff
+            --accent: #4aa3ff;
+            /* max width the content should ever reach on large screens */
+            --content-max: 1160px; /* tweak to taste */
+            /* side padding that scales a bit with the viewport */
+            --gutter: clamp(12px, 2vw, 24px);
         }
 
         html, body {
@@ -27,16 +31,41 @@
             margin: 18px 0
         }
 
-        .wrap {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 24px
+        * {
+            box-sizing: border-box;
         }
+
+        .wrap {
+            max-width: var(--content-max);
+            margin-inline: auto; /* center */
+            padding-inline: var(--gutter);
+            box-sizing: border-box;
+        }
+
+
 
         .row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: clamp(12px, 2vw, 24px);
+        }
+
+            /* TOP PAIR ONLY: enforce a visible gap and sane min width */
+            .row.row-top {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px !important; /* <- guaranteed gutter */
+            }
+
+                /* allow children to shrink rather than push across the gap */
+                .row.row-top > * {
+                    min-width: 0;
+                }
+
+        /* stack on smaller viewports */
+        @media (max-width: 1024px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
         }
 
         .card {
@@ -44,6 +73,12 @@
             border: 1px solid var(--muted);
             border-radius: 10px;
             padding: 16px
+        }
+
+        .card, .builder-card, #resultsCard {
+            width: 100%;
+            max-width: 100%;
+            margin-inline: 0;
         }
 
         .stack {
@@ -79,9 +114,16 @@
 
         textarea {
             width: 100%;
-            min-height: 160px;
+            max-width: 100%;
+            box-sizing: border-box;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
             resize: vertical;
-            font-family: ui-monospace,SFMono,Consolas,monospace
+        }
+
+        #jsonBox {
+            width: 100%; /* already ok, but explicit */
+            min-height: clamp(160px, 24vh, 220px); /* grow on tall screens, never tiny */
         }
 
         button {
@@ -161,29 +203,14 @@
         }
 
         /* reserve a slim column for the arrows */
-        .rule .row > div:has(> button.btn-icon) {
-            flex: 0 0 44px; /* fits the vertical pair comfortably */
+        .rule .row .arrows {
+            flex: 0 0 44px;
         }
 
         /* Section width that grows but doesn’t explode */
         .rule .row .labelled.section {
             min-width: 260px;
             flex: 1 0 320px;
-        }
-
-        #jsonPreview {
-            white-space: pre-wrap; /* wrap long lines */
-            word-break: break-word; /* break long tokens if needed */
-            overflow: auto; /* scroll if still too big */
-            max-height: 45vh; /* don’t get too tall */
-            width: 100%;
-            padding: 12px;
-            margin-top: 8px;
-            border: 1px solid #2b3748;
-            border-radius: 10px;
-            background: #0b111a;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-            font-size: 12.5px;
         }
 
         #jsonFilename {
@@ -193,8 +220,6 @@
         }
 
         .builder-card {
-            max-width: 1210px; /* pick your width: e.g., 880 / 980 / 1100 */
-            margin-inline: auto; /* center within the page wrap */
             width: 100%;
         }
 
@@ -202,9 +227,122 @@
                 display: none;
             }
 
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* ---- Table rule preview polish ---- */
+        .preview-card {
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            padding: 10px;
+            background: #0b0b0f;
+        }
+
+        .preview-title {
+            font-size: 12px;
+            color: #9aa0a6;
+            margin-bottom: 6px;
+        }
+
+        .chips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 10px;
+        }
+
+        .chips-col .head {
+            font-size: 12px;
+            color: #b9c1c8;
+            margin-bottom: 4px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            font-size: 11px;
+            padding: 2px 8px;
+            border: 1px solid #2a2a2a;
+            background: #11151a;
+            border-radius: 999px;
+            color: #d9dee3;
+        }
+
+        .scroll-wrap {
+            max-height: 240px;
+            overflow: auto;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+        }
+
+        .mini-table {
+            width: max-content;
+            max-width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 12px;
+        }
+
+            .mini-table thead th {
+                position: sticky;
+                top: 0;
+                background: #0f1216;
+                color: #cbd3da;
+                text-align: left;
+                border-bottom: 1px solid #2a2a2a;
+                padding: 6px 8px;
+            }
+
+            .mini-table tbody td {
+                padding: 6px 8px;
+                border-bottom: 1px dashed #1f2429;
+                color: #e6eaee;
+            }
+
+            .mini-table tbody tr:nth-child(even) td {
+                background: #0d1015;
+            }
+
+        .td-num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* small helper */
+        .muted {
+            color: #9aa0a6;
+        }
+
+        .scroll-wrap {
+            max-height: 220px;
+            overflow: auto;
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            font-size: 11px;
+            padding: 2px 6px;
+            border: 1px solid #2a2a2a;
+            border-radius: 999px;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        }
+
         #resultsCard {
-            max-width: 1210px; /* or 980px, etc. */
-            margin-inline: auto; /* center it */
             width: 100%;
         }
 
@@ -291,14 +429,13 @@
         #resultsCard.only-misses [data-status="pass"] {
             display: none !important;
         }
-
     </style>
 </head>
 <body>
     <div class="wrap">
         <h1>Excel Autograder</h1>
 
-        <div class="row">
+        <div class="row row-top">
             <div class="card stack">
                 <div class="stack">
                     <label>Key workbook (.xlsx) <small>(used to generate rubric)</small></label>
@@ -332,73 +469,73 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <div class="spacer"></div>
-
-    <div class="card builder-card">
-        <h2 style="margin:4px 0 12px">Rubric Builder</h2>
-
-        <!-- Collapsible header (sits just above the builder controls) -->
-        <div class="hstack" style="justify-content:space-between;align-items:center;margin:6px 0 10px;">
-            <div class="tiny muted">Builder controls</div>
-            <button id="btnToggleBuilder" class="ghost">Hide builder</button>
-        </div>
-
-        <!-- Everything in the builder lives inside #builderBody so we can collapse it -->
-        <div id="builderBody">
-            <div class="grid-2">
-                <div class="stack">
-                    <label>Generate from Key (uses the Key file chosen above)</label>
-                    <div class="hstack">
-                        <input id="sheetHint" type="text" placeholder="e.g., 'Scores' or 'Summary' (optional)" />
-                        <label class="checkbox"><input type="checkbox" id="allSheets" /> All sheets</label>
-                        <input id="totalPoints" type="number" step="0.25" min="0" placeholder="Total Points (e.g., 5 or 10)" style="width:180px" />
-                        <button id="btnGenerate" class="primary">Generate</button>
-                        <button id="btnClear" class="danger">Clear Builder</button>
-                    </div>
-                    <div class="tiny muted">Generate → replaces the builder entirely with the auto-rubric from your key. No merge, no leftovers.</div>
-                </div>
-
-                <div class="stack">
-                    <label>Report options</label>
-                    <div class="hstack">
-                        <label class="checkbox"><input type="checkbox" id="optPassFail" checked /> Include Pass/Fail</label>
-                        <label class="checkbox"><input type="checkbox" id="optComments" checked /> Include Comments</label>
-                        <button id="btnGenerateJson" class="right">Generate JSON (from builder)</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- keep the rest of your builder content (Add Sheet, sheets list, etc.) below, still inside #builderBody -->
-
-
-            <div class="hr"></div>
-
-            <div class="hstack">
-                <button id="btnAddSheet" class="ghost">+ Add Sheet</button>
-                <span class="tiny pill">Tip: use “Duplicate” to clone a whole sheet or a single rule.</span>
-            </div>
-
-            <div id="sheets" class="stack"></div>
-        </div>
 
         <div class="spacer"></div>
 
-        <!-- RESULTS -->
-        <div class="card stack" id="resultsCard" style="display:none">
-            <div class="hstack" style="align-items:center; justify-content:space-between;">
-                <h2 style="margin:0">Results</h2>
-                <div class="hstack" style="gap:12px; align-items:center;">
-                    <!-- NEW -->
-                    <label class="tiny hstack" style="gap:6px; cursor:pointer;">
-                        <input id="toggleOnlyMisses" type="checkbox">
-                        <span>Show only misses</span>
-                    </label>
-                    <button id="btnDownloadReport" class="ghost right" title="Download the raw report as JSON">Download report</button>
-                </div>
+        <div class="card builder-card">
+            <h2 style="margin:4px 0 12px">Rubric Builder</h2>
+
+            <!-- Collapsible header (sits just above the builder controls) -->
+            <div class="hstack" style="justify-content:space-between;align-items:center;margin:6px 0 10px;">
+                <div class="tiny muted">Builder controls</div>
+                <button id="btnToggleBuilder" class="ghost">Hide builder</button>
             </div>
-            <div id="resultsBody"></div>
+
+            <!-- Everything in the builder lives inside #builderBody so we can collapse it -->
+            <div id="builderBody">
+                <div class="grid-2">
+                    <div class="stack">
+                        <label>Generate from Key (uses the Key file chosen above)</label>
+                        <div class="hstack">
+                            <input id="sheetHint" type="text" placeholder="e.g., 'Scores' or 'Summary' (optional)" />
+                            <label class="checkbox"><input type="checkbox" id="allSheets" /> All sheets</label>
+                            <input id="totalPoints" type="number" step="0.25" min="0" placeholder="Total Points (e.g., 5 or 10)" style="width:180px" />
+                            <button id="btnGenerate" class="primary">Generate</button>
+                            <button id="btnClear" class="danger">Clear Builder</button>
+                        </div>
+                        <div class="tiny muted">Generate → replaces the builder entirely with the auto-rubric from your key. No merge, no leftovers.</div>
+                    </div>
+
+                    <div class="stack">
+                        <label>Report options</label>
+                        <div class="hstack">
+                            <label class="checkbox"><input type="checkbox" id="optPassFail" checked /> Include Pass/Fail</label>
+                            <label class="checkbox"><input type="checkbox" id="optComments" checked /> Include Comments</label>
+                            <button id="btnGenerateJson" class="right">Generate JSON (from builder)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- keep the rest of your builder content (Add Sheet, sheets list, etc.) below, still inside #builderBody -->
+
+
+                <div class="hr"></div>
+
+                <div class="hstack">
+                    <button id="btnAddSheet" class="ghost">+ Add Sheet</button>
+                    <span class="tiny pill">Tip: use “Duplicate” to clone a whole sheet or a single rule.</span>
+                </div>
+
+                <div id="sheets" class="stack"></div>
+            </div>
+
+            <div class="spacer"></div>
+
+            <!-- RESULTS -->
+            <div class="card stack" id="resultsCard" style="display:none">
+                <div class="hstack" style="align-items:center; justify-content:space-between;">
+                    <h2 style="margin:0">Results</h2>
+                    <div class="hstack" style="gap:12px; align-items:center;">
+                        <!-- NEW -->
+                        <label class="tiny hstack" style="gap:6px; cursor:pointer;">
+                            <input id="toggleOnlyMisses" type="checkbox">
+                            <span>Show only misses</span>
+                        </label>
+                        <button id="btnDownloadReport" class="ghost right" title="Download the raw report as JSON">Download report</button>
+                    </div>
+                </div>
+                <div id="resultsBody"></div>
+            </div>
         </div>
     </div>
 
@@ -431,31 +568,6 @@
 
         const splitCSV = s => (s || '').split(',').map(x => x.trim()).filter(Boolean);
         const joinCSV = arr => (arr || []).join(', ');
-
-
-        function ensureChart(r) {
-            const c = r.chart || {};
-            const norm = {
-                sheet: c.sheet ?? null,
-                name_like: c.name_like ?? null,
-                type: c.type ?? null,            // line, column, bar, pie, scatter, area, doughnut, radar, bubble
-                title: c.title ?? null,
-                title_ref: c.title_ref ?? null,
-                legend_pos: c.legend_pos ?? null, // t,r,b,l,tr
-                data_labels: (typeof c.data_labels === 'boolean') ? c.data_labels : null,
-                x_title: c.x_title ?? null,
-                y_title: c.y_title ?? null,
-                series: Array.isArray(c.series) ? c.series.map(s => ({
-                    name: s?.name ?? null,
-                    name_ref: s?.name_ref ?? null,
-                    cat_ref: s?.cat_ref ?? null,
-                    val_ref: s?.val_ref ?? null
-                })) : []
-            };
-            r.chart = norm;   // write back normalized shape so preview is clean
-            return norm;
-        }
-
 
         function pivotValuesBlock(rule, onChange) {
             const pv = ensurePivot(rule);
@@ -491,9 +603,45 @@
             return wrap;
         }
 
+
+        function ensureChart(r) {
+            const c = r.chart || {};
+            const norm = {
+                sheet: c.sheet ?? null,
+                name_like: c.name_like ?? null,
+                type: c.type ?? null,            // line, column, bar, pie, scatter, area, doughnut, radar, bubble
+                title: c.title ?? null,
+                title_ref: c.title_ref ?? null,
+                legend_pos: c.legend_pos ?? null, // t,r,b,l,tr
+                data_labels: (typeof c.data_labels === 'boolean') ? c.data_labels : null,
+                x_title: c.x_title ?? null,
+                y_title: c.y_title ?? null,
+                series: Array.isArray(c.series) ? c.series.map(s => ({
+                    name: s?.name ?? null,
+                    name_ref: s?.name_ref ?? null,
+                    cat_ref: s?.cat_ref ?? null,
+                    val_ref: s?.val_ref ?? null
+                })) : []
+            };
+            r.chart = norm;   // write back normalized shape so preview is clean
+            return norm;
+        }
+
+        function ensureTable(r) {
+            const t = r.table || {};
+            const norm = {
+                sheet: t.sheet ?? null,
+                name_like: t.name_like ?? null,
+                columns: Array.isArray(t.columns) ? t.columns.filter(Boolean) : [],
+                require_order: (typeof t.require_order === 'boolean') ? t.require_order : null
+            };
+            r.table = norm;
+            return norm;
+        }
+
         // ---------- builder state
         let rubric = { points: 5, report: { include_pass_fail_column: true, include_comments: true }, sheets: {} };
-        const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout', 'conditional_format', 'chart'];
+        const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout', 'conditional_format', 'chart', 'table'];
         const emptyRule = (type = 'formula') => ({ type, points: 1, cell: '', range: '', note: '', tolerance: null, any_of: null, expected_from_key: null, expected: null, expected_regex: null, expected_formula: null, allow_regex: null, expected_formula_regex: null, format: null, require: null, start: null, step: null, require_absolute: null });
 
         // ---------- render
@@ -533,13 +681,6 @@
             a.remove();
             URL.revokeObjectURL(a.href);
         }
-
-        // Make sure refreshJsonPreview writes the *live* builder state:
-        function refreshJsonPreview() {
-            const pre = document.getElementById('jsonPreview');
-            if (pre) pre.textContent = JSON.stringify(rubric, null, 2);
-        }
-
 
         function sheetBlock(name, spec) {
             const wrap = el('div', 'sheet');
@@ -581,6 +722,7 @@
             btnDown.title = 'Move down';
 
             const arrows = el('div');
+            arrows.className = 'arrows';
             arrows.style.display = 'flex';
             arrows.style.flexDirection = 'column';
             arrows.style.gap = '6px';
@@ -615,11 +757,6 @@
             b.append(row1);
 
             const row2 = el('div', 'hstack');
-            const expectedVal = el('input');
-            expectedVal.placeholder = 'Expected';
-            expectedVal.style.width = '220px';
-            expectedVal.value = (r.expected ?? '') + '';
-            expectedVal.onchange = () => { r.expected = expectedVal.value || null; refreshJsonPreview(); };
 
             const exf = el('input'); exf.placeholder = 'Expected formula (=A1+...)'; exf.style.width = '220px'; exf.value = r.expected_formula ?? '';
             const regex = el('input'); regex.placeholder = 'Regex (optional)'; regex.style.width = '200px'; regex.value = r.expected_formula_regex ?? '';
@@ -644,6 +781,33 @@
 
             function showFor(type) {
                 row2.innerHTML = '';
+
+                // Replace the duplicate helper inside showFor(...) with this one:
+                function hideCellAndRange() {
+                    // Hide the generic Cell / Range wrappers (they're not used by some rule types)
+                    const hide = inp => inp?.closest('.labelled')?.classList.add('hidden');
+                    // search inside this rule block `b`
+                    hide(b.querySelector('input[placeholder="e.g. B12"]'));
+                    hide(b.querySelector('input[placeholder="e.g. A2:B11"]'));
+                }
+
+                function hideSeriesControls() {
+                    // Hide any “Series (categories/values…) / + Add series” bits (meant for charts)
+                    const seriesLabel = Array.from(row2.querySelectorAll('.tiny, .muted, div'))
+                        .find(n => /Series \(categories\/values/i.test(n.textContent || ''));
+                    if (seriesLabel) {
+                        let p = seriesLabel.parentElement;
+                        while (p && p !== row2) {
+                            if (p.classList.contains('stack') || p.classList.contains('row')) {
+                                p.classList.add('hidden');
+                                break;
+                            }
+                            p = p.parentElement;
+                        }
+                    }
+                }
+
+
                 if (type === 'formula') {
                     row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap);
 
@@ -1076,6 +1240,259 @@
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
                     row2.append(btnDup, btnDel);
+                } else if (type === 'table') {
+                    const t = ensureTable(r);
+
+                    // Hide generic inputs that don't apply to tables
+                    hideCellAndRange();
+                    hideSeriesControls();
+
+                    // ---------- Helpers ----------
+                    const NUM_RE = /^\s*[$€£]?\s*-?\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*%?\s*$/;
+
+                    // ---------- Top: range + dims + allow extras ----------
+                    const rangeRef = el('input'); rangeRef.placeholder = 'A1:D20 or Sheet!A1:D20';
+                    rangeRef.value = t.range_ref || '';
+                    rangeRef.onchange = () => { t.range_ref = rangeRef.value.trim() || null; refreshJsonPreview(); };
+
+                    const rowsInp = el('input'); rowsInp.type = 'number'; rowsInp.min = '0';
+                    rowsInp.placeholder = 'rows';
+                    rowsInp.value = (t.rows ?? '').toString();
+                    rowsInp.onchange = () => { const v = rowsInp.value.trim(); t.rows = v === '' ? null : Number(v); refreshJsonPreview(); };
+
+                    const colsInp = el('input'); colsInp.type = 'number'; colsInp.min = '0';
+                    colsInp.placeholder = 'cols';
+                    colsInp.value = (t.cols ?? '').toString();
+                    colsInp.onchange = () => { const v = colsInp.value.trim(); t.cols = v === '' ? null : Number(v); refreshJsonPreview(); };
+
+                    const allowER = document.createElement('input'); allowER.type = 'checkbox';
+                    allowER.checked = t.allow_extra_rows === true;
+                    allowER.onchange = () => { t.allow_extra_rows = allowER.checked ? true : null; refreshJsonPreview(); };
+                    const allowERLbl = el('label', 'checkbox'); allowERLbl.append(allowER, el('span', '', 'Allow extra rows'));
+
+                    const allowEC = document.createElement('input'); allowEC.type = 'checkbox';
+                    allowEC.checked = t.allow_extra_cols === true;
+                    allowEC.onchange = () => { t.allow_extra_cols = allowEC.checked ? true : null; refreshJsonPreview(); };
+                    const allowECLbl = el('label', 'checkbox'); allowECLbl.append(allowEC, el('span', '', 'Allow extra cols'));
+
+                    const dims = el('div', 'row');
+                    dims.style.gridTemplateColumns = '1.2fr .6fr .6fr .8fr .9fr';
+                    dims.style.gap = '12px';
+                    dims.append(labelled(rangeRef, 'Range (optional)'), labelled(rowsInp, 'Rows'), labelled(colsInp, 'Cols'), allowERLbl, allowECLbl);
+                    row2.append(dims);
+
+                    // ---------- Whole-body match toggles ----------
+                    const matchWhole = document.createElement('input'); matchWhole.type = 'checkbox';
+                    const orderMatters = document.createElement('input'); orderMatters.type = 'checkbox';
+                    const caseSens = document.createElement('input'); caseSens.type = 'checkbox';
+                    const trimCells = document.createElement('input'); trimCells.type = 'checkbox';
+
+                    matchWhole.checked = !!t.body_match;
+                    orderMatters.checked = !!t.body_order_matters;
+                    caseSens.checked = !!t.body_case_sensitive;
+                    trimCells.checked = (t.body_trim ?? true);
+
+                    matchWhole.onchange = () => { t.body_match = matchWhole.checked ? true : null; refreshJsonPreview(); };
+                    orderMatters.onchange = () => { t.body_order_matters = orderMatters.checked ? true : null; refreshJsonPreview(); };
+                    caseSens.onchange = () => { t.body_case_sensitive = caseSens.checked ? true : null; refreshJsonPreview(); };
+                    trimCells.onchange = () => { t.body_trim = trimCells.checked ? true : null; refreshJsonPreview(); };
+
+                    const toggles = el('div', 'row');
+                    toggles.style.gridTemplateColumns = 'auto auto auto auto';
+                    toggles.style.gap = '14px';
+                    toggles.append(
+                        el('label', 'checkbox', null).appendChild(matchWhole).parentElement.appendChild(el('span', '', 'Match entire contents')).parentElement,
+                        el('label', 'checkbox', null).appendChild(orderMatters).parentElement.appendChild(el('span', '', 'Row order matters')).parentElement,
+                        el('label', 'checkbox', null).appendChild(caseSens).parentElement.appendChild(el('span', '', 'Case sensitive')).parentElement,
+                        el('label', 'checkbox', null).appendChild(trimCells).parentElement.appendChild(el('span', '', 'Trim cell text')).parentElement
+                    );
+                    row2.append(toggles);
+
+                    // ---------- Required rows (subset) ----------
+                    const containsWrap = el('div', 'stack');
+                    const list = el('div', 'stack');
+                    function renderContains() {
+                        list.innerHTML = '';
+                        (t.contains_rows || []).forEach((obj, i) => {
+                            const row = el('div', 'hstack');
+                            const preview = el('div'); preview.className = 'mono small muted';
+                            preview.textContent = Object.entries(obj).map(([k, v]) => `${k}="${v}"`).join('  ·  ');
+                            const del = el('button', 'ghost danger', 'Remove');
+                            del.onclick = () => { t.contains_rows.splice(i, 1); renderContains(); refreshJsonPreview(); };
+                            row.append(preview, del);
+                            list.append(row);
+                        });
+                    }
+                    const pasteRows = el('button', 'ghost', 'Paste required rows…');
+                    pasteRows.onclick = () => {
+                        const txt = prompt(
+                            'Paste CSV/TSV with headers in first row.\n' +
+                            'Only the columns you include will be matched.\n' +
+                            'Example:\nRegion,Item\nEast,Widgets\nWest,Gadgets', ''
+                        );
+                        if (txt != null) {
+                            const lines = txt.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                            if (lines.length > 1) {
+                                const delim = (txt.indexOf('\t') >= 0) ? '\t' : ',';
+                                const headers = lines[0].split(delim).map(s => s.trim()).filter(Boolean);
+                                const rows = lines.slice(1).map(line => line.split(delim));
+                                t.contains_rows = rows.map(vals => {
+                                    const obj = {};
+                                    headers.forEach((h, i) => { if (vals[i] != null && vals[i].trim() !== '') obj[h] = vals[i].trim(); });
+                                    return obj;
+                                }).filter(o => Object.keys(o).length > 0);
+                                renderContains();
+                                refreshJsonPreview();
+                            }
+                        }
+                    };
+                    containsWrap.append(el('div', 'tiny muted', 'Required rows (must appear at least once):'), list, pasteRows);
+                    row2.append(containsWrap);
+                    renderContains();
+
+                    // ---------- Columns editor ----------
+                    t.columns = Array.isArray(t.columns) ? t.columns.filter(Boolean) : [];
+                    const colList = el('div', 'stack');
+
+                    function renderColumns() {
+                        colList.innerHTML = '';
+                        (t.columns || []).forEach((name, i) => {
+                            const rrow = el('div', 'hstack');
+
+                            const inp = el('input');
+                            inp.placeholder = 'Header name';
+                            inp.style.width = '260px';
+                            inp.value = name || '';
+                            inp.onchange = () => { t.columns[i] = inp.value.trim(); refreshJsonPreview(); };
+
+                            const up = el('button', 'ghost', '↑');
+                            up.onclick = () => {
+                                if (i > 0) { [t.columns[i - 1], t.columns[i]] = [t.columns[i], t.columns[i - 1]]; renderColumns(); refreshJsonPreview(); }
+                            };
+                            const dn = el('button', 'ghost', '↓');
+                            dn.onclick = () => {
+                                if (i < t.columns.length - 1) { [t.columns[i + 1], t.columns[i]] = [t.columns[i], t.columns[i + 1]]; renderColumns(); refreshJsonPreview(); }
+                            };
+                            const del = el('button', 'ghost danger', 'Remove');
+                            del.onclick = () => { t.columns.splice(i, 1); renderColumns(); refreshJsonPreview(); };
+
+                            rrow.append(labelled(inp, `Header ${i + 1}`), up, dn, del);
+                            colList.append(rrow);
+                        });
+                    }
+
+                    const addCol = el('button', 'ghost', 'Add column');
+                    addCol.onclick = () => { (t.columns = t.columns || []).push(''); renderColumns(); refreshJsonPreview(); };
+
+                    const bulk = el('button', 'ghost', 'Paste…');
+                    bulk.onclick = () => {
+                        const txt = prompt('Paste header names (comma or newline separated):', '');
+                        if (txt != null) {
+                            const parts = txt.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+                            if (parts.length) { t.columns = parts; renderColumns(); refreshJsonPreview(); }
+                        }
+                    };
+
+                    const reqOrder = document.createElement('input'); reqOrder.type = 'checkbox';
+                    reqOrder.checked = t.require_order === true;
+                    reqOrder.onchange = () => { t.require_order = reqOrder.checked; refreshJsonPreview(); };
+                    const reqOrderLbl = el('label', 'checkbox'); reqOrderLbl.append(reqOrder, el('span', '', 'Require header order'));
+
+                    const colsWrap = el('div', 'stack');
+                    const colsLabel = el('div', 'tiny muted', 'Columns (in order if "Require header order" is checked):');
+                    const actions = el('div', 'hstack'); actions.append(addCol, bulk);
+                    colsWrap.append(colsLabel, colList, actions);
+
+                    // Name like
+                    const nameLike = el('input');
+                    nameLike.placeholder = 'Table name contains (optional)';
+                    nameLike.value = t.name_like || '';
+                    nameLike.onchange = () => { t.name_like = nameLike.value.trim() || null; refreshJsonPreview(); };
+
+                    // ---------- 2-column layout: columns editor (left) | preview (right) ----------
+                    const left = el('div', 'stack');
+                    left.append(labelled(nameLike, 'Name like'), colsWrap, reqOrderLbl);
+
+                    const right = el('div', 'stack');
+                    // preview toggle + panel
+                    const show = document.createElement('input'); show.type = 'checkbox';
+                    const showLbl = el('label', 'checkbox'); showLbl.append(show, el('span', '', 'Show key table data'));
+                    const previewPanel = el('div', 'preview-card'); previewPanel.style.display = 'none';
+                    right.append(showLbl, previewPanel);
+
+                    show.onchange = () => {
+                        previewPanel.style.display = show.checked ? '' : 'none';
+                        if (show.checked) renderPreview();
+                    };
+
+                    function renderPreview() {
+                        previewPanel.innerHTML = '';
+
+                        const rows = Array.isArray(t.body_rows) ? t.body_rows : null;
+                        const headers = Array.isArray(t.columns) ? t.columns : null;
+
+                        if (!rows || !rows.length || !headers || !headers.length) {
+                            previewPanel.append(el('div', 'muted', 'No captured table data.'));
+                            return;
+                        }
+
+                        // Distinct chips
+                        const chipsTitle = el('div', 'preview-title', 'Distinct values by column (sample up to 12):');
+                        const chipsGrid = el('div', 'chips-grid');
+
+                        headers.forEach((h, ci) => {
+                            const uniq = new Map();
+                            rows.forEach(r => { const v = (r[ci] ?? '').toString(); uniq.set(v, (uniq.get(v) || 0) + 1); });
+
+                            const col = el('div', 'chips-col');
+                            const head = el('div', 'head', h);
+                            const chips = el('div', 'chips');
+                            [...uniq.keys()].slice(0, 12).forEach(v => chips.append(Object.assign(el('span', 'chip'), { textContent: v === '' ? '(blank)' : v })));
+                            if (uniq.size > 12) chips.append(Object.assign(el('span', 'chip'), { textContent: `+${uniq.size - 12} more` }));
+                            col.append(head, chips);
+                            chipsGrid.append(col);
+                        });
+
+                        // Data grid
+                        const N = 25;
+                        const gridTitle = el('div', 'preview-title', `Previewing first ${Math.min(N, rows.length)} of ${rows.length} data rows:`);
+                        const tbl = document.createElement('table'); tbl.className = 'mini-table';
+                        const thead = document.createElement('thead'); const trh = document.createElement('tr');
+                        headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; trh.append(th); });
+                        thead.append(trh); tbl.append(thead);
+
+                        const tbody = document.createElement('tbody');
+                        rows.slice(0, N).forEach(r => {
+                            const tr = document.createElement('tr');
+                            headers.forEach((_, ci) => {
+                                const td = document.createElement('td');
+                                const text = (r[ci] ?? '').toString();
+                                td.textContent = text;
+                                if (NUM_RE.test(text)) td.classList.add('td-num');
+                                tr.append(td);
+                            });
+                            tbody.append(tr);
+                        });
+                        tbl.append(tbody);
+
+                        const scroll = el('div', 'scroll-wrap'); scroll.append(tbl);
+
+                        previewPanel.append(chipsTitle, chipsGrid, gridTitle, scroll);
+                    }
+
+                    const grid = el('div', 'row'); grid.style.gridTemplateColumns = '1fr 1fr'; grid.style.gap = '16px';
+                    grid.append(left, right);
+                    row2.append(grid);
+
+                    // ---------- Duplicate / Remove ----------
+                    const btnDup = el('button', 'ghost', 'Duplicate');
+                    const btnDel = el('button', 'ghost danger', 'Remove');
+                    btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+                    btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+                    row2.append(btnDup, btnDel);
+
+                    // initial paint
+                    renderColumns();
                 } else {
                     // fallback
                     const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
@@ -1105,7 +1522,11 @@
         }
 
 
-        function labelled(input, label) { const box = el('div', 'stack'); box.append(el('div', 'tiny muted', label), input); return box; }
+        function labelled(input, label) {
+            const box = el('div', 'stack labelled');  // <-- add labelled
+            box.append(el('div', 'tiny muted', label), input);
+            return box;
+        }
         function checkbox(txt, checked) { const w = el('label', 'checkbox'); const c = el('input'); c.type = 'checkbox'; c.checked = checked; const s = el('span', '', txt); w.append(c, s); return { wrap: w, input: c }; }
 
         // ---------- JSON <-> builder
@@ -1119,6 +1540,31 @@
             rubric = { points: json.points ?? 5, report: json.report ?? { include_pass_fail_column: true, include_comments: true }, sheets: {} };
             if (json.sheets) { for (const [name, spec] of Object.entries(json.sheets)) { rubric.sheets[name] = { checks: Array.isArray(spec.checks) ? spec.checks : [] }; } }
             render();
+        }
+
+        function ensureTable(r) {
+            const t = r.table || {};
+            r.table = {
+                sheet: t.sheet ?? null,
+                name_like: t.name_like ?? null,
+                columns: Array.isArray(t.columns) ? t.columns.filter(Boolean) : [],
+                require_order: (typeof t.require_order === 'boolean') ? t.require_order : null,
+
+                range_ref: t.range_ref ?? null,
+                rows: (typeof t.rows === 'number') ? t.rows : (t.rows ? Number(t.rows) : null),
+                cols: (typeof t.cols === 'number') ? t.cols : (t.cols ? Number(t.cols) : null),
+                allow_extra_rows: (typeof t.allow_extra_rows === 'boolean') ? t.allow_extra_rows : (t.allow_extra_rows ? true : null),
+                allow_extra_cols: (typeof t.allow_extra_cols === 'boolean') ? t.allow_extra_cols : (t.allow_extra_cols ? true : null),
+                contains_rows: Array.isArray(t.contains_rows) ? t.contains_rows : [],
+
+                // NEW body match options + captured body
+                body_match: (typeof t.body_match === 'boolean') ? t.body_match : (t.body_rows ? true : null),
+                body_order_matters: (typeof t.body_order_matters === 'boolean') ? t.body_order_matters : null,
+                body_case_sensitive: (typeof t.body_case_sensitive === 'boolean') ? t.body_case_sensitive : null,
+                body_trim: (typeof t.body_trim === 'boolean') ? t.body_trim : true,
+                body_rows: Array.isArray(t.body_rows) ? t.body_rows : null
+            };
+            return r.table;
         }
 
         // ---------- actions
@@ -1179,7 +1625,11 @@
                 $('#jsonBox').value = JSON.stringify(rub, null, 2);
                 rubric = rub; // reset builder to server rubric
                 render();
-            } catch (err) { console.error(err); alert('Generation failed'); }
+            } catch (err) {
+                console.error(err);
+                const msg = (err && err.message) ? err.message : String(err ?? 'unknown error');
+                alert('Generation failed: ' + msg);
+            }
         }
         $('#btnGenerate').addEventListener('click', e => { e.preventDefault(); generateFromKey(); });
 
@@ -1279,8 +1729,8 @@
                     const card = el('div', 'card');
                     const hdr = el('div', 'hstack');
                     hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
-                                                                                   <span class="tag fail">FAIL</span>
-                                                                                   <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                                                                                                       <span class="tag fail">FAIL</span>
+                                                                                                       <span class="muted">${escapeHtml(String(r.error))}</span>`;
                     card.appendChild(hdr);
                     body.appendChild(card);
                     continue;
@@ -1299,16 +1749,16 @@
                 const card = el('div', 'card');
                 const hdr = el('div', 'hstack');
                 hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
-                                                                                 <span class="tag ${passBool ? 'pass' : 'fail'}">${passBool ? 'PASS' : 'FAIL'}</span>
-                                                                                 <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                                                                                                     <span class="tag ${passBool ? 'pass' : 'fail'}">${passBool ? 'PASS' : 'FAIL'}</span>
+                                                                                                     <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
                 card.appendChild(hdr);
 
                 const details = grade.details ?? grade.Details ?? [];
                 const tbl = el('table');
                 const thead = el('thead');
                 thead.innerHTML = `<tr>
-                                                                    <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
-                                                                  </tr>`;
+                                                                                        <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                                                                                      </tr>`;
                 tbl.appendChild(thead);
 
                 const tb = document.createElement('tbody');
@@ -1333,10 +1783,10 @@
                     const tr = document.createElement('tr');
                     tr.className = 'section-row';
                     tr.innerHTML = `
-                            <td colspan="5" style="font-weight:600; padding-top:10px;">
-                              ${escapeHtml(sec)}
-                              <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
-                            </td>`;
+                                                <td colspan="5" style="font-weight:600; padding-top:10px;">
+                                                  ${escapeHtml(sec)}
+                                                  <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+                                                </td>`;
                     tb.appendChild(tr);
                 }
 
@@ -1350,11 +1800,11 @@
                     const tr = document.createElement('tr');
                     tr.dataset.status = okBool ? 'pass' : 'fail';
                     tr.innerHTML = `
-                                                                    <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
-                                                                    <td class="mono">${fmtNum(d.points)}</td>
-                                                                    <td class="mono">${fmtNum(d.earned)}</td>
-                                                                    <td>${okBool ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
-                                                                    <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+                                                                                        <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+                                                                                        <td class="mono">${fmtNum(d.points)}</td>
+                                                                                        <td class="mono">${fmtNum(d.earned)}</td>
+                                                                                        <td>${okBool ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
+                                                                                        <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
                     tb.appendChild(tr);
                 }
                 tbl.appendChild(tb);

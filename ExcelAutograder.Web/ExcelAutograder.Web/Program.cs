@@ -161,89 +161,106 @@ app.MapPost("/api/rubric/{name}", async (string name, HttpRequest req) =>
 // POST /api/rubric/auto  (multipart/form-data: key=<file>, sheet=<optional>, all=<optional "true">, total=<optional>)
 app.MapPost("/api/rubric/auto", async (HttpRequest req) =>
 {
-    if (!req.HasFormContentType) return Results.BadRequest(new { error = "Expected multipart/form-data" });
-    var form = await req.ReadFormAsync();
-    var keyFile = form.Files.GetFile("key");
+    try
+    {
+        if (!req.HasFormContentType) return Results.BadRequest(new { error = "Expected multipart/form-data" });
+        var form = await req.ReadFormAsync();
+        var keyFile = form.Files.GetFile("key");
+        if (keyFile is null) return Results.BadRequest(new { error = "Upload key workbook as 'key'" });
 
-    string? sheet = form["sheet"].FirstOrDefault() ?? req.Query["sheet"].FirstOrDefault() ?? req.Query["sheetHint"].FirstOrDefault();
-    string? allStr = form["all"].FirstOrDefault() ?? req.Query["all"].FirstOrDefault() ?? req.Query["allSheets"].FirstOrDefault();
-    string? totalStr = form["total"].FirstOrDefault() ?? req.Query["total"].FirstOrDefault();
+        string? sheet = form["sheet"].FirstOrDefault() ?? req.Query["sheet"].FirstOrDefault() ?? req.Query["sheetHint"].FirstOrDefault();
+        string? allStr = form["all"].FirstOrDefault() ?? req.Query["all"].FirstOrDefault() ?? req.Query["allSheets"].FirstOrDefault();
+        string? totalStr = form["total"].FirstOrDefault() ?? req.Query["total"].FirstOrDefault();
 
-    static bool ParseBool(string? s) =>
+        static bool ParseBool(string? s) =>
             !string.IsNullOrWhiteSpace(s) &&
             (s.Equals("true", StringComparison.OrdinalIgnoreCase) ||
              s.Equals("on", StringComparison.OrdinalIgnoreCase) ||
              s == "1");
 
-    bool allSheets = ParseBool(allStr);
+        bool allSheets = ParseBool(allStr);
 
+        // ---- buffer the key file into memory
+        byte[] keyBytes;
+        using (var ms = new MemoryStream())
+        {
+            using var src = keyFile.OpenReadStream();
+            await src.CopyToAsync(ms);
+            keyBytes = ms.ToArray();
+        }
 
-    if (keyFile is null) return Results.BadRequest(new { error = "Upload key workbook as 'key'" });
+        // build from key
+        using var wbKey = new XLWorkbook(new MemoryStream(keyBytes));
+        var rub = RubricAuto.BuildFromKey(wbKey, sheet, allSheets, 0, keyBytes);
 
-    // ---- BUFFER THE KEY FILE
-    byte[] keyBytes;
-    using (var ms = new MemoryStream())
-    {
-        using var src = keyFile.OpenReadStream();
-        await src.CopyToAsync(ms);
-        keyBytes = ms.ToArray();
+        // optional scaling
+        if (double.TryParse(totalStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var desired) && desired > 0)
+            RubricAuto.ScalePoints(rub, desired);
+
+        return Results.Json(rub, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
     }
-
-    // ClosedXML view (kept)
-    using var wbKey = new XLWorkbook(new MemoryStream(keyBytes));
-
-    // NEW: call the overload that accepts the raw bytes for ZIP pivot scan
-    var rub = RubricAuto.BuildFromKey(wbKey, sheet, allSheets, 0, keyBytes);
-
-    // optional: scale if a total was provided
-    if (double.TryParse(totalStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var desired) && desired > 0)
-        RubricAuto.ScalePoints(rub, desired);
-
-    return Results.Json(rub, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(ex); // log to server console
+        return Results.Problem(
+            title: "Auto-rubric generation failed",
+            detail: ex.ToString(),
+            statusCode: 500
+        );
+    }
 });
 
 // POST /api/auto-rubric  (same behavior; some UIs call this route)
 app.MapPost("/api/auto-rubric", async (HttpRequest req) =>
 {
-    if (!req.HasFormContentType) return Results.BadRequest(new { error = "Expected multipart/form-data" });
-    var form = await req.ReadFormAsync();
-    var keyFile = form.Files.GetFile("key");
+    try
+    {
+        if (!req.HasFormContentType) return Results.BadRequest(new { error = "Expected multipart/form-data" });
+        var form = await req.ReadFormAsync();
+        var keyFile = form.Files.GetFile("key");
+        if (keyFile is null) return Results.BadRequest(new { error = "Upload key workbook as 'key'" });
 
-    string? sheet = form["sheet"].FirstOrDefault() ?? req.Query["sheet"].FirstOrDefault() ?? req.Query["sheetHint"].FirstOrDefault();
-    string? allStr = form["all"].FirstOrDefault() ?? req.Query["all"].FirstOrDefault() ?? req.Query["allSheets"].FirstOrDefault();
-    string? totalStr = form["total"].FirstOrDefault() ?? req.Query["total"].FirstOrDefault();
+        string? sheet = form["sheet"].FirstOrDefault() ?? req.Query["sheet"].FirstOrDefault() ?? req.Query["sheetHint"].FirstOrDefault();
+        string? allStr = form["all"].FirstOrDefault() ?? req.Query["all"].FirstOrDefault() ?? req.Query["allSheets"].FirstOrDefault();
+        string? totalStr = form["total"].FirstOrDefault() ?? req.Query["total"].FirstOrDefault();
 
-    static bool ParseBool(string? s) =>
+        static bool ParseBool(string? s) =>
             !string.IsNullOrWhiteSpace(s) &&
             (s.Equals("true", StringComparison.OrdinalIgnoreCase) ||
              s.Equals("on", StringComparison.OrdinalIgnoreCase) ||
              s == "1");
 
-    bool allSheets = ParseBool(allStr);
+        bool allSheets = ParseBool(allStr);
 
+        // ---- buffer the key file into memory
+        byte[] keyBytes;
+        using (var ms = new MemoryStream())
+        {
+            using var src = keyFile.OpenReadStream();
+            await src.CopyToAsync(ms);
+            keyBytes = ms.ToArray();
+        }
 
-    if (keyFile is null) return Results.BadRequest(new { error = "Upload key workbook as 'key'" });
+        // build from key
+        using var wbKey = new XLWorkbook(new MemoryStream(keyBytes));
+        var rub = RubricAuto.BuildFromKey(wbKey, sheet, allSheets, 0, keyBytes);
 
-    // ---- BUFFER THE KEY FILE
-    byte[] keyBytes;
-    using (var ms = new MemoryStream())
-    {
-        using var src = keyFile.OpenReadStream();
-        await src.CopyToAsync(ms);
-        keyBytes = ms.ToArray();
+        // optional scaling
+        if (double.TryParse(totalStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var desired) && desired > 0)
+            RubricAuto.ScalePoints(rub, desired);
+
+        return Results.Json(rub, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
     }
-
-    // ClosedXML view (kept)
-    using var wbKey = new XLWorkbook(new MemoryStream(keyBytes));
-
-    // NEW: call the overload that accepts the raw bytes for ZIP pivot scan
-    var rub = RubricAuto.BuildFromKey(wbKey, sheet, allSheets, 0, keyBytes);
-
-    // optional: scale if a total was provided
-    if (double.TryParse(totalStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var desired) && desired > 0)
-        RubricAuto.ScalePoints(rub, desired);
-
-    return Results.Json(rub, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(ex);
+        return Results.Problem(
+            title: "Auto-rubric generation failed",
+            detail: ex.ToString(),
+            statusCode: 500
+        );
+    }
 });
+
 
 app.Run();

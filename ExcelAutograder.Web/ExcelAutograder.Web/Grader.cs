@@ -92,6 +92,7 @@ public static class Grader
             "chart" => GradeChart(rule, wbS),
             "pivot_layout" => GradePivotLayout(rule, wbS),
             "conditional_format" => GradeConditionalFormat(rule, wbS),
+            "table" => GradeTable(rule, wsS),
 
             _ => new CheckResult(rule.Type, rule.Points, 0, false, $"Unknown check type '{rule.Type}'")
         };
@@ -163,78 +164,87 @@ public static class Grader
         var cellAddr = rule.Cell ?? throw new Exception("formula check missing 'cell'");
         var pts = rule.Points;
 
-        // student formula (raw + normalized)
+        // student's formula (raw + normalized)
         string sRaw = wsS.Cell(cellAddr).FormulaA1 ?? "";
         string sNorm = NormalizeFormula(sRaw);
 
-        // Build the set of options to try (any_of overrides rule-level)
-        IEnumerable<(string? lit, string? rx, bool? fromKey, bool? requireAbs, string origin)> Options()
-        {
-            if (rule.AnyOf is { Count: > 0 })
-            {
-                foreach (var o in rule.AnyOf)
-                    yield return (o.ExpectedFormula, o.ExpectedFormulaRegex, o.ExpectedFromKey, o.RequireAbsolute, "option");
-            }
-            else
-            {
-                yield return (rule.ExpectedFormula, rule.ExpectedFormulaRegex, rule.ExpectedFromKey, rule.RequireAbsolute, "rule");
-            }
-        }
+        // Build options to try (any_of overrides rule-level)
+        var opts = (rule.AnyOf is { Count: > 0 }
+            ? rule.AnyOf.Select(o => (o.ExpectedFormula, o.ExpectedFormulaRegex, o.ExpectedFromKey, o.RequireAbsolute, "option"))
+            : new[] { (rule.ExpectedFormula, rule.ExpectedFormulaRegex, rule.ExpectedFromKey, rule.RequireAbsolute, "rule") }
+        ).ToList();
 
         var reasons = new List<string>();
 
-        foreach (var (lit, rx, fromKey, requireAbs, origin) in Options())
+        foreach (var (litExp, rxExp, fromKey, requireAbs, origin) in opts)
         {
-            // 1) literal expected
-            var litNorm = NormalizeFormula(lit ?? "");
+            // 1) Literal expected
+            var litNorm = NormalizeFormula(litExp ?? "");
             if (!string.IsNullOrEmpty(litNorm))
             {
-                bool ok = sNorm == litNorm;
-                if (ok)
+                bool contentOk = sNorm == litNorm;
+
+                if (contentOk)
                 {
-                    // Only enforce absolutes AFTER the formula matches
-                    if (requireAbs == true && !InspectAbsoluteRefs(sRaw).any)
+                    if (requireAbs == true)
                     {
-                        return new CheckResult($"formula:{cellAddr}", pts, 0, false,
-                            $"formula correct but missing $ absolute reference(s) ({origin})");
+                        var missing = MissingAbsolutesFromExpected(litExp!, sRaw);
+                        if (missing.Count > 0)
+                            return new CheckResult(
+                                $"formula:{cellAddr}", pts, 0, false,
+                                $"formula correct but missing required absolutes: {string.Join(", ", missing)} ({origin}); got='{sRaw}' expected='{litExp}'"
+                            );
                     }
 
-                    return new CheckResult($"formula:{cellAddr}", pts, pts, true,
-                        $"formula='{sNorm}' expected='{litNorm}' ({origin})");
+                    return new CheckResult(
+                        $"formula:{cellAddr}", pts, pts, true,
+                        $"formula='{sNorm}' expected='{litNorm}' ({origin})"
+                    );
                 }
 
-                reasons.Add($"formula='{sNorm}' expected='{litNorm}' ({origin})");
+                // content mismatch; still show absolute problems for context if requested
+                if (requireAbs == true)
+                {
+                    var missing = MissingAbsolutesFromExpected(litExp!, sRaw);
+                    if (missing.Count > 0) reasons.Add($"missing required absolutes: {string.Join(", ", missing)}");
+                }
+
+                reasons.Add($"formula='{sNorm}' expected='{litNorm}' ({origin}); got='{sRaw}'");
                 continue;
             }
 
-            // 2) regex expected
-            if (!string.IsNullOrWhiteSpace(rx))
+            // 2) Regex expected
+            if (!string.IsNullOrWhiteSpace(rxExp))
             {
-                bool ok = Regex.IsMatch(sNorm, $"^{rx}$");
-                if (ok)
+                bool contentOk = Regex.IsMatch(sNorm, $"^{rxExp}$", RegexOptions.IgnoreCase);
+
+                if (contentOk)
                 {
-                    if (requireAbs == true && !InspectAbsoluteRefs(sRaw).any)
+                    if (requireAbs == true)
                     {
-                        return new CheckResult($"formula:{cellAddr}", pts, 0, false,
-                            $"formula correct (regex) but missing $ absolute reference(s) ({origin})");
+                        // No concrete expected text → fall back to "all must be absolute"
+                        var absInfo = MissingAbsoluteRefs(sRaw);
+                        if (!absInfo.ok)
+                            return new CheckResult(
+                                $"formula:{cellAddr}", pts, 0, false,
+                                $"formula correct (regex) but missing absolutes: {string.Join(", ", absInfo.missing)} ({origin}); got='{sRaw}'"
+                            );
                     }
 
-                    return new CheckResult($"formula:{cellAddr}", pts, pts, true,
-                        $"formula='{sNorm}' regex='{rx}' ({origin})");
+                    return new CheckResult(
+                        $"formula:{cellAddr}", pts, pts, true,
+                        $"formula='{sNorm}' regex='{rxExp}' ({origin})"
+                    );
                 }
 
-                reasons.Add($"formula='{sNorm}' regex='{rx}' no match ({origin})");
+                reasons.Add($"formula='{sNorm}' regex='{rxExp}' no match ({origin}); got='{sRaw}'");
                 continue;
             }
 
-            // 3) expected from key
+            // 3) Expected from key
             if (fromKey == true)
             {
-                if (wsK is null)
-                {
-                    reasons.Add($"key sheet missing ({origin})");
-                    continue;
-                }
+                if (wsK is null) { reasons.Add($"key sheet missing ({origin})"); continue; }
 
                 var kc = wsK.Cell(cellAddr);
                 var kRaw = kc.HasFormula ? (kc.FormulaA1 ?? kc.FormulaR1C1 ?? "") : "";
@@ -242,30 +252,44 @@ public static class Grader
 
                 if (!string.IsNullOrEmpty(kNorm) && sNorm == kNorm)
                 {
-                    if (requireAbs == true && !InspectAbsoluteRefs(sRaw).any)
+                    if (requireAbs == true)
                     {
-                        return new CheckResult($"formula:{cellAddr}", pts, 0, false,
-                            $"formula matches key but missing $ absolute reference(s) ({origin})");
+                        var missing = MissingAbsolutesFromExpected(kRaw, sRaw);
+                        if (missing.Count > 0)
+                            return new CheckResult(
+                                $"formula:{cellAddr}", pts, 0, false,
+                                $"formula matches key but missing required absolutes: {string.Join(", ", missing)} (from key); got='{sRaw}' expected='{kRaw}'"
+                            );
                     }
 
-                    return new CheckResult($"formula:{cellAddr}", pts, pts, true,
-                        $"formula='{sNorm}' expected='{kNorm}' (from key)");
+                    return new CheckResult(
+                        $"formula:{cellAddr}", pts, pts, true,
+                        $"formula='{sNorm}' expected='{kNorm}' (from key)"
+                    );
+                }
+
+                if (requireAbs == true)
+                {
+                    var missing = MissingAbsolutesFromExpected(kRaw, sRaw);
+                    if (missing.Count > 0) reasons.Add($"missing required absolutes: {string.Join(", ", missing)}");
                 }
 
                 reasons.Add(kc.HasFormula
-                    ? $"formula='{sNorm}' expected='{kNorm}' (from key)"
+                    ? $"formula='{sNorm}' expected='{kNorm}' (from key); got='{sRaw}'"
                     : "key cell has no formula");
                 continue;
             }
 
-            // If an option had none of the above, note it
+            // No expectation configured
             reasons.Add($"no expected provided ({origin})");
         }
 
-        // none matched
-        return new CheckResult($"formula:{cellAddr}", pts, 0, false,
-            string.Join(" | ", reasons));
+        // Content did not match any option; return accumulated reasons
+        var failMsg = string.Join(" | ", reasons);
+        return new CheckResult($"formula:{cellAddr}", pts, 0, false, failMsg);
     }
+
+
 
 
 
@@ -276,6 +300,76 @@ public static class Grader
         bool col = Regex.IsMatch(f, @"\$[A-Za-z]");
         bool row = Regex.IsMatch(f, @"\$\d");
         return (col || row, col, row);
+    }
+
+    // Returns ok + list of refs that are NOT fully absolute ($col$row)
+    private static (bool ok, List<string> missing) MissingAbsoluteRefs(string? formulaA1)
+    {
+        var text = formulaA1 ?? string.Empty;
+        // Rough A1 finder: optional 'Sheet'!, then $A$1/$A1/A$1/A1. Skips functions, etc.
+        var rx = new Regex(@"(?<![A-Z0-9_])(?:'[^']+'!)?(\$?)[A-Za-z]{1,3}(\$?)[0-9]+",
+                           RegexOptions.IgnoreCase);
+        var missing = new List<string>();
+
+        foreach (Match m in rx.Matches(text))
+        {
+            bool colAbs = m.Groups[1].Value == "$";
+            bool rowAbs = m.Groups[2].Value == "$";
+            if (!(colAbs && rowAbs))
+            {
+                var token = m.Value;
+                int bang = token.LastIndexOf('!');
+                if (bang >= 0 && bang + 1 < token.Length) token = token[(bang + 1)..]; // strip sheet
+                missing.Add(token);
+            }
+        }
+        return (missing.Count == 0, missing);
+    }
+
+    // Extract single-cell endpoints in order (e.g., "A1:B10" -> ["A1","B10"]).
+    private static List<(bool colAbs, bool rowAbs, string token)> ExtractEndpoints(string? formulaA1)
+    {
+        var res = new List<(bool colAbs, bool rowAbs, string token)>();
+        if (string.IsNullOrWhiteSpace(formulaA1)) return res;
+
+        var rx = new Regex(@"(?<![A-Z0-9_])(?:'[^']+'!)?(\$?)([A-Za-z]{1,3})(\$?)(\d+)", RegexOptions.IgnoreCase);
+        foreach (Match m in rx.Matches(formulaA1))
+        {
+            bool colAbs = m.Groups[1].Value == "$";
+            bool rowAbs = m.Groups[3].Value == "$";
+            // strip sheet if present for nicer messages
+            string token = m.Value;
+            int bang = token.LastIndexOf('!');
+            if (bang >= 0 && bang + 1 < token.Length) token = token[(bang + 1)..];
+            res.Add((colAbs, rowAbs, token));
+        }
+        return res;
+    }
+
+    // Compare absolutes against the EXPECTED formula.
+    // Returns the list of endpoints that should be absolute (per expected)
+    // but are not absolute in the student's formula at the same position.
+    private static List<string> MissingAbsolutesFromExpected(string expectedA1, string studentA1)
+    {
+        var exp = ExtractEndpoints(expectedA1);
+        var got = ExtractEndpoints(studentA1);
+
+        var missing = new List<string>();
+        int n = Math.Min(exp.Count, got.Count);
+
+        for (int i = 0; i < n; i++)
+        {
+            var e = exp[i]; var g = got[i];
+            if (e.colAbs && !g.colAbs) missing.Add(g.token);
+            if (e.rowAbs && !g.rowAbs) missing.Add(g.token);
+        }
+
+        // If student has fewer endpoints than expected, any remaining absolutes are missing.
+        for (int i = got.Count; i < exp.Count; i++)
+            if (exp[i].colAbs || exp[i].rowAbs) missing.Add(exp[i].token);
+
+        // dedupe
+        return missing.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
 
@@ -1125,6 +1219,215 @@ public static class Grader
             return false;
         }
     }
+
+    // =====================
+    // EXCEL TABLE
+    // =====================
+
+    private static CheckResult GradeTable(Rule rule, IXLWorksheet wsS)
+    {
+        var pts = rule.Points;
+        var spec = rule.Table;
+        if (spec is null)
+            return new CheckResult("table", pts, 0, false, "No table spec provided");
+
+        // Sheet gating
+        if (!string.IsNullOrWhiteSpace(spec.Sheet) &&
+            !string.Equals(spec.Sheet, wsS.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return new CheckResult("table", pts, 0, false, $"Expected on sheet '{spec.Sheet}', grading '{wsS.Name}'");
+        }
+
+        // Candidate tables
+        var tables = wsS.Tables.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(spec.NameLike))
+            tables = tables.Where(t => t.Name.IndexOf(spec.NameLike!, StringComparison.OrdinalIgnoreCase) >= 0);
+
+        if (!tables.Any())
+            return new CheckResult("table", pts, 0, false,
+                $"No table {(string.IsNullOrWhiteSpace(spec.NameLike) ? "" : $"matching '{spec.NameLike}' ")}found on '{wsS.Name}'");
+
+        int checksTotal = 0, bestHits = -1;
+        string bestNote = "", bestName = "";
+
+        foreach (var t in tables)
+        {
+            var notes = new List<string>();
+            int cks = 0, hits = 0;
+
+            // ---------- HEADERS ----------
+            var headers = t.Fields.Select(f => f.Name?.Trim() ?? "").ToList();
+            if (spec.Columns is { Count: > 0 })
+            {
+                foreach (var want in spec.Columns)
+                {
+                    cks++;
+                    bool present = headers.Any(h => string.Equals(h, want, StringComparison.OrdinalIgnoreCase));
+                    if (present) { hits++; notes.Add($"[{t.Name}] has '{want}'"); }
+                    else notes.Add($"[{t.Name}] missing '{want}'");
+                }
+                if (spec.RequireOrder == true)
+                {
+                    cks++;
+                    bool orderOk = true; int last = -1;
+                    foreach (var want in spec.Columns)
+                    {
+                        int idx = headers.FindIndex(h => string.Equals(h, want, StringComparison.OrdinalIgnoreCase));
+                        if (idx < 0 || idx < last) { orderOk = false; break; }
+                        last = idx;
+                    }
+                    if (orderOk) { hits++; notes.Add($"[{t.Name}] column order ok"); }
+                    else notes.Add($"[{t.Name}] column order wrong");
+                }
+            }
+
+            // ---------- RANGE REF (full table range, incl. header) ----------
+            if (!string.IsNullOrWhiteSpace(spec.RangeRef))
+            {
+                cks++;
+                bool ok = false;
+                try
+                {
+                    string sheetPart = wsS.Name, addrPart = spec.RangeRef!;
+                    int bang = spec.RangeRef!.IndexOf('!');
+                    if (bang >= 0) { sheetPart = spec.RangeRef!.Substring(0, bang); addrPart = spec.RangeRef!.Substring(bang + 1); }
+                    var sh = string.Equals(sheetPart, wsS.Name, StringComparison.OrdinalIgnoreCase)
+                        ? wsS
+                        : wsS.Workbook.Worksheet(sheetPart);
+
+                    var expected = sh.Range(addrPart).RangeAddress;
+                    var got = t.RangeAddress;
+                    ok = got.FirstAddress.RowNumber == expected.FirstAddress.RowNumber
+                         && got.FirstAddress.ColumnNumber == expected.FirstAddress.ColumnNumber
+                         && got.LastAddress.RowNumber == expected.LastAddress.RowNumber
+                         && got.LastAddress.ColumnNumber == expected.LastAddress.ColumnNumber;
+                }
+                catch { ok = false; }
+
+                if (ok) { hits++; notes.Add($"[{t.Name}] range matches {spec.RangeRef}"); }
+                else notes.Add($"[{t.Name}] range != {spec.RangeRef} (got {t.RangeAddress.ToStringRelative()})");
+            }
+
+            // ---------- DIMENSIONS (data body only) ----------
+            var body = t.DataRange;
+            int bodyRows = body?.RowCount() ?? 0;
+            int bodyCols = body?.ColumnCount() ?? 0;
+
+            if (spec.Rows.HasValue)
+            {
+                cks++;
+                bool ok = (spec.AllowExtraRows == true) ? (bodyRows >= spec.Rows.Value) : (bodyRows == spec.Rows.Value);
+                if (ok) { hits++; notes.Add($"rows {bodyRows} ok"); }
+                else notes.Add($"rows {bodyRows} not {(spec.AllowExtraRows == true ? ">=" : "=")} {spec.Rows}");
+            }
+            if (spec.Cols.HasValue)
+            {
+                cks++;
+                bool ok = (spec.AllowExtraCols == true) ? (bodyCols >= spec.Cols.Value) : (bodyCols == spec.Cols.Value);
+                if (ok) { hits++; notes.Add($"cols {bodyCols} ok"); }
+                else notes.Add($"cols {bodyCols} not {(spec.AllowExtraCols == true ? ">=" : "=")} {spec.Cols}");
+            }
+
+            // ---------- CONTAINS ROWS (subset match) ----------
+            if (spec.ContainsRows is { Count: > 0 })
+            {
+                var idxByName = headers
+                    .Select((h, i) => (h, i))
+                    .ToDictionary(x => x.h, x => x.i, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var required in spec.ContainsRows)
+                {
+                    cks++;
+                    bool found = false;
+                    if (body != null)
+                    {
+                        foreach (var row in body.Rows())
+                        {
+                            bool match = true;
+                            foreach (var kv in required)
+                            {
+                                if (!idxByName.TryGetValue(kv.Key, out int ci)) { match = false; break; }
+                                var text = row.Cell(ci + 1).GetFormattedString()?.Trim() ?? "";
+                                if (!string.Equals(text, (kv.Value ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+                                { match = false; break; }
+                            }
+                            if (match) { found = true; break; }
+                        }
+                    }
+                    if (found) { hits++; notes.Add($"contains: {string.Join(", ", required.Select(kv => $"{kv.Key}='{kv.Value}'"))}"); }
+                    else notes.Add($"missing: {string.Join(", ", required.Select(kv => $"{kv.Key}='{kv.Value}'"))}");
+                }
+            }
+
+            // ---------- WHOLE-BODY COMPARISON ----------
+            if (spec.BodyMatch == true && spec.BodyRows is { Count: > 0 })
+            {
+                cks++;
+
+                // student values (formatted)
+                var sBody = new List<List<string>>();
+                if (body != null)
+                {
+                    foreach (var r in body.Rows())
+                    {
+                        var rowVals = new List<string>();
+                        foreach (var c in r.Cells())
+                            rowVals.Add(c.GetFormattedString() ?? "");
+                        sBody.Add(rowVals);
+                    }
+                }
+
+                bool trim = spec.BodyTrim != false;           // default true
+                bool caseSens = spec.BodyCaseSensitive == true;
+                string Norm(string x) => trim ? (x ?? "").Trim() : (x ?? "");
+                StringComparer cmp = caseSens ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+
+                // shape must match
+                bool shapeOk = sBody.Count == spec.BodyRows.Count &&
+                               (sBody.Count == 0 || sBody[0].Count == spec.BodyRows[0].Count);
+
+                bool match = shapeOk;
+                if (match)
+                {
+                    if (spec.BodyOrderMatters == true)
+                    {
+                        for (int i = 0; i < sBody.Count && match; i++)
+                            for (int j = 0; j < sBody[i].Count && match; j++)
+                                if (!cmp.Equals(Norm(sBody[i][j]), Norm(spec.BodyRows[i][j])))
+                                    match = false;
+                    }
+                    else
+                    {
+                        string Key(List<string> row) => string.Join("\u001F", row.Select(Norm));
+                        var left = sBody.Select(Key).GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+                        var right = spec.BodyRows.Select(Key).GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+                        match = left.Count == right.Count && left.All(kv => right.TryGetValue(kv.Key, out int n) && n == kv.Value);
+                    }
+                }
+
+                if (match) { hits++; notes.Add("body matches"); }
+                else notes.Add("body does not match");
+            }
+
+            // Best candidate scoring
+            if (cks > 0 && hits > bestHits)
+            {
+                bestHits = hits;
+                checksTotal = cks;
+                bestName = t.Name;
+                bestNote = string.Join(" | ", notes);
+            }
+        }
+
+        if (checksTotal == 0)
+            return new CheckResult("table", pts, 0, false, "No checks declared (add columns / range_ref / rows/cols / contains_rows / body_match).");
+
+        double frac = (double)bestHits / checksTotal;
+        double earned = pts * frac;
+        bool pass = Math.Abs(frac - 1.0) < 1e-9;
+        return new CheckResult($"table:{bestName}", pts, earned, pass, bestNote);
+    }
+
 
 
     // ---------------- A1 parsing helpers (no ClosedXML needed) ------------------

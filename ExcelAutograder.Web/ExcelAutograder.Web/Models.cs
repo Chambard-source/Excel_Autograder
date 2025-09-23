@@ -57,6 +57,8 @@ public class Rule
     public bool? CaseSensitive { get; set; }
 
     [JsonPropertyName("chart")] public ChartSpec? Chart { get; set; }
+
+    [JsonPropertyName("table")] public TableSpec? Table { get; set; }
 }
 
 
@@ -146,5 +148,30 @@ public class ChartSeriesSpec
     [JsonPropertyName("val_ref")] public string? ValRef { get; set; }       // values ref,      "Sheet1!$B$2:$B$10"
 }
 
+public class TableSpec
+{
+    [JsonPropertyName("sheet")] public string? Sheet { get; set; }
+    [JsonPropertyName("name_like")] public string? NameLike { get; set; }
+    [JsonPropertyName("columns")] public List<string>? Columns { get; set; }
+    [JsonPropertyName("require_order")] public bool? RequireOrder { get; set; }
+
+    // dimensions/range
+    [JsonPropertyName("range_ref")] public string? RangeRef { get; set; }
+    [JsonPropertyName("rows")] public int? Rows { get; set; }
+    [JsonPropertyName("cols")] public int? Cols { get; set; }
+    [JsonPropertyName("allow_extra_rows")] public bool? AllowExtraRows { get; set; }
+    [JsonPropertyName("allow_extra_cols")] public bool? AllowExtraCols { get; set; }
+
+    // content matching
+    [JsonPropertyName("body_match")] public bool? BodyMatch { get; set; }
+    [JsonPropertyName("body_order_matters")] public bool? BodyOrderMatters { get; set; }
+    [JsonPropertyName("body_case_sensitive")] public bool? BodyCaseSensitive { get; set; }
+    [JsonPropertyName("body_trim")] public bool? BodyTrim { get; set; } = true;
+    [JsonPropertyName("body_rows")] public List<List<string>>? BodyRows { get; set; }
+
+    // containment (subset) checks
+    [JsonPropertyName("contains_rows")] public List<Dictionary<string, string>>? ContainsRows { get; set; }
+
+}
 
 public record CheckResult(string Name, double Points, double Earned, bool Passed, string Comment);
