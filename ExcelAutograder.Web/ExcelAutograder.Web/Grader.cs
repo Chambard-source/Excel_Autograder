@@ -4,9 +4,24 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using ClosedXML.Excel;
+using System.IO;
+using System;
+using System.Collections.Generic;
+using System.IO;
 
 public static class Grader
 {
+
+    private static byte[]? _studentZipBytes;
+
+    private static void EnsureStudentZipBytes(XLWorkbook wbS)
+    {
+        if (_studentZipBytes != null) return;
+        using var ms = new MemoryStream();
+        wbS.SaveAs(ms);                 // serialize current student workbook
+        _studentZipBytes = ms.ToArray();
+    }
+
     // ---- Entry point used by the web endpoint
     public static object Run(XLWorkbook wbKey, XLWorkbook wbStudent, Rubric rubric)
     {
@@ -71,10 +86,6 @@ public static class Grader
         try { return Run(wbKey, wbStudent, rubric); }
         finally { _studentZipBytes = null; }
     }
-
-    // backing field
-    private static byte[]? _studentZipBytes;
-
 
     // ---- Router
     private static CheckResult DispatchRule(Rule rule, XLWorkbook wbS, XLWorkbook wbK, IXLWorksheet wsS, IXLWorksheet? wsK)
@@ -164,8 +175,112 @@ public static class Grader
         var cellAddr = rule.Cell ?? throw new Exception("formula check missing 'cell'");
         var pts = rule.Points;
 
+        // ---------- helpers ----------
+        static bool TryParseNumber(string s, out double v)
+        {
+            // normalize common decorations: %, commas, currency
+            var raw = s.Trim();
+            var isPct = raw.EndsWith("%", StringComparison.Ordinal);
+            raw = raw.Replace("%", "").Replace(",", "");
+            // strip currency symbols but keep minus/dot
+            raw = new string(raw.Where(ch => char.IsDigit(ch) || ch == '-' || ch == '.').ToArray());
+
+            var ok = double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                     System.Globalization.CultureInfo.InvariantCulture, out v);
+            if (ok && isPct) v /= 100.0;
+            return ok;
+        }
+
+        //// Returns (ok, detailMessage). If no expected value is configured → ok=true.
+        //(bool ok, string detail) ValueMatches(IXLCell cell, Rule r)
+        //{
+        //    // Pull expected literal from r.Expected (JsonElement? → string?)
+        //    static string? GetExpectedLiteral(Rule rr)
+        //    {
+        //        if (rr.Expected is null) return null;
+
+        //        // If your Rule.Expected is declared as JsonElement?,
+        //        // access it here; otherwise adjust types as needed.
+        //        JsonElement? je = rr.Expected as JsonElement?;
+        //        if (je is null)
+        //        {
+        //            // fallback if model isn't JsonElement
+        //            return rr.Expected?.ToString();
+        //        }
+
+        //        var e = je.Value;
+        //        return e.ValueKind switch
+        //        {
+        //            JsonValueKind.String => e.GetString(),
+        //            JsonValueKind.Number => e.TryGetDouble(out var d) ? d.ToString(System.Globalization.CultureInfo.InvariantCulture) : e.ToString(),
+        //            JsonValueKind.True => "TRUE",
+        //            JsonValueKind.False => "FALSE",
+        //            JsonValueKind.Null => null,
+        //            _ => e.ToString()
+        //        };
+        //    }
+
+        //    var expectedLiteral = GetExpectedLiteral(r);
+        //    var expectedRegex = r.ExpectedRegex;
+
+        //    // nothing to check
+        //    if (string.IsNullOrWhiteSpace(expectedRegex) && string.IsNullOrWhiteSpace(expectedLiteral))
+        //        return (true, "");
+
+        //    // Get what the user sees; fall back to raw string if needed
+        //    var studentText = cell.GetFormattedString();
+        //    if (string.IsNullOrWhiteSpace(studentText))
+        //        studentText = cell.GetString();
+
+        //    // regex match has priority if provided
+        //    if (!string.IsNullOrWhiteSpace(expectedRegex))
+        //    {
+        //        bool pass = Regex.IsMatch(studentText, expectedRegex!, RegexOptions.IgnoreCase);
+        //        return pass
+        //            ? (true, "value matches regex")
+        //            : (false, $"value '{studentText}' !~ /{expectedRegex}/");
+        //    }
+
+        //    // otherwise compare against expected literal (numeric if possible)
+        //    var want = expectedLiteral ?? "";
+
+        //    static bool TryParseNumber(string s, out double v)
+        //    {
+        //        var raw = s.Trim();
+        //        var isPct = raw.EndsWith("%", StringComparison.Ordinal);
+        //        raw = raw.Replace("%", "").Replace(",", "");
+        //        raw = new string(raw.Where(ch => char.IsDigit(ch) || ch == '-' || ch == '.').ToArray());
+        //        var ok = double.TryParse(raw, System.Globalization.NumberStyles.Float,
+        //                                 System.Globalization.CultureInfo.InvariantCulture, out v);
+        //        if (ok && isPct) v /= 100.0;
+        //        return ok;
+        //    }
+
+        //    if (TryParseNumber(studentText, out var gotNum) && TryParseNumber(want, out var expNum))
+        //    {
+        //        var tol = r.Tolerance ?? 0.0;
+        //        bool pass = Math.Abs(gotNum - expNum) <= Math.Abs(tol);
+        //        return pass
+        //            ? (true, $"value {gotNum}≈{expNum} (±{tol})")
+        //            : (false, $"value {gotNum}≠{expNum} (tol {tol})");
+        //    }
+        //    else
+        //    {
+        //        bool pass = string.Equals(studentText.Trim(), want.Trim(), StringComparison.OrdinalIgnoreCase);
+        //        return pass
+        //            ? (true, "value text matches")
+        //            : (false, $"value text got '{studentText}' expected '{want}'");
+        //    }
+        //}
+
+
+        // --- 0) Must actually be a formula ---
+        var sCell = wsS.Cell(cellAddr);
+        if (!sCell.HasFormula)
+            return new CheckResult($"formula:{cellAddr}", pts, 0, false, "cell has no formula");
+
         // student's formula (raw + normalized)
-        string sRaw = wsS.Cell(cellAddr).FormulaA1 ?? "";
+        string sRaw = sCell.FormulaA1 ?? "";
         string sNorm = NormalizeFormula(sRaw);
 
         // Build options to try (any_of overrides rule-level)
@@ -182,35 +297,43 @@ public static class Grader
             var litNorm = NormalizeFormula(litExp ?? "");
             if (!string.IsNullOrEmpty(litNorm))
             {
-                bool contentOk = sNorm == litNorm;
+                bool contentOk = (sNorm == litNorm);
 
-                if (contentOk)
+                if (!contentOk)
                 {
-                    if (requireAbs == true)
-                    {
-                        var missing = MissingAbsolutesFromExpected(litExp!, sRaw);
-                        if (missing.Count > 0)
-                            return new CheckResult(
-                                $"formula:{cellAddr}", pts, 0, false,
-                                $"formula correct but missing required absolutes: {string.Join(", ", missing)} ({origin}); got='{sRaw}' expected='{litExp}'"
-                            );
-                    }
-
-                    return new CheckResult(
-                        $"formula:{cellAddr}", pts, pts, true,
-                        $"formula='{sNorm}' expected='{litNorm}' ({origin})"
-                    );
+                    // Tell them the formula mismatched; DO NOT mention absolutes yet
+                    reasons.Add($"formula mismatch | expected='{litExp}' ({origin}); got='{sRaw}'");
+                    continue;
                 }
 
-                // content mismatch; still show absolute problems for context if requested
+                // Content matches → now and only now check required absolutes
                 if (requireAbs == true)
                 {
                     var missing = MissingAbsolutesFromExpected(litExp!, sRaw);
-                    if (missing.Count > 0) reasons.Add($"missing required absolutes: {string.Join(", ", missing)}");
+                    if (missing.Count > 0)
+                    {
+                        return new CheckResult(
+                            $"formula:{cellAddr}", pts, 0, false,
+                            $"formula correct; missing required absolutes: {string.Join(", ", missing)} | got='{sRaw}'"
+                        );
+                    }
                 }
 
-                reasons.Add($"formula='{sNorm}' expected='{litNorm}' ({origin}); got='{sRaw}'");
-                continue;
+                // Optional value check
+                var (ok, detail) = ValueMatches(sCell, rule);
+                if (!ok)
+                {
+                    return new CheckResult(
+                        $"formula:{cellAddr}", pts, 0, false,
+                        $"formula correct but value mismatch: {detail} | got formula '{sRaw}'"
+                    );
+                }
+
+                return new CheckResult(
+                    $"formula:{cellAddr}", pts, pts, true,
+                    "formula correct" + (requireAbs == true ? " with required absolutes" : "") +
+                    (string.IsNullOrWhiteSpace(detail) ? "" : $" | {detail}")
+                );
             }
 
             // 2) Regex expected
@@ -218,69 +341,99 @@ public static class Grader
             {
                 bool contentOk = Regex.IsMatch(sNorm, $"^{rxExp}$", RegexOptions.IgnoreCase);
 
-                if (contentOk)
+                if (!contentOk)
                 {
-                    if (requireAbs == true)
-                    {
-                        // No concrete expected text → fall back to "all must be absolute"
-                        var absInfo = MissingAbsoluteRefs(sRaw);
-                        if (!absInfo.ok)
-                            return new CheckResult(
-                                $"formula:{cellAddr}", pts, 0, false,
-                                $"formula correct (regex) but missing absolutes: {string.Join(", ", absInfo.missing)} ({origin}); got='{sRaw}'"
-                            );
-                    }
+                    reasons.Add($"formula mismatch (regex) | regex='{rxExp}' ({origin}); got='{sRaw}'");
+                    continue;
+                }
 
+                if (requireAbs == true)
+                {
+                    // No concrete expected → fall back to "must include $ anchors wherever applicable"
+                    var absInfo = MissingAbsoluteRefs(sRaw);
+                    if (!absInfo.ok)
+                    {
+                        return new CheckResult(
+                            $"formula:{cellAddr}", pts, 0, false,
+                            $"formula correct; missing required absolutes: {string.Join(", ", absInfo.missing)} | got='{sRaw}'"
+                        );
+                    }
+                }
+
+                // Optional value check
+                var (ok, detail) = ValueMatches(sCell, rule);
+                if (!ok)
+                {
                     return new CheckResult(
-                        $"formula:{cellAddr}", pts, pts, true,
-                        $"formula='{sNorm}' regex='{rxExp}' ({origin})"
+                        $"formula:{cellAddr}", pts, 0, false,
+                        $"formula correct (regex) but value mismatch: {detail} | got formula '{sRaw}'"
                     );
                 }
 
-                reasons.Add($"formula='{sNorm}' regex='{rxExp}' no match ({origin}); got='{sRaw}'");
-                continue;
+                return new CheckResult(
+                    $"formula:{cellAddr}", pts, pts, true,
+                    "formula correct (regex)" + (requireAbs == true ? " with required absolutes" : "") +
+                    (string.IsNullOrWhiteSpace(detail) ? "" : $" | {detail}")
+                );
             }
 
             // 3) Expected from key
             if (fromKey == true)
             {
-                if (wsK is null) { reasons.Add($"key sheet missing ({origin})"); continue; }
+                if (wsK is null)
+                {
+                    reasons.Add($"key sheet missing ({origin})");
+                    continue;
+                }
 
                 var kc = wsK.Cell(cellAddr);
                 var kRaw = kc.HasFormula ? (kc.FormulaA1 ?? kc.FormulaR1C1 ?? "") : "";
                 var kNorm = NormalizeFormula(kRaw);
 
-                if (!string.IsNullOrEmpty(kNorm) && sNorm == kNorm)
+                if (string.IsNullOrEmpty(kNorm))
                 {
-                    if (requireAbs == true)
-                    {
-                        var missing = MissingAbsolutesFromExpected(kRaw, sRaw);
-                        if (missing.Count > 0)
-                            return new CheckResult(
-                                $"formula:{cellAddr}", pts, 0, false,
-                                $"formula matches key but missing required absolutes: {string.Join(", ", missing)} (from key); got='{sRaw}' expected='{kRaw}'"
-                            );
-                    }
+                    reasons.Add("key cell has no formula");
+                    continue;
+                }
 
-                    return new CheckResult(
-                        $"formula:{cellAddr}", pts, pts, true,
-                        $"formula='{sNorm}' expected='{kNorm}' (from key)"
-                    );
+                bool contentOk = (sNorm == kNorm);
+
+                if (!contentOk)
+                {
+                    reasons.Add($"formula mismatch (from key) | expected='{kRaw}' ; got='{sRaw}'");
+                    continue;
                 }
 
                 if (requireAbs == true)
                 {
                     var missing = MissingAbsolutesFromExpected(kRaw, sRaw);
-                    if (missing.Count > 0) reasons.Add($"missing required absolutes: {string.Join(", ", missing)}");
+                    if (missing.Count > 0)
+                    {
+                        return new CheckResult(
+                            $"formula:{cellAddr}", pts, 0, false,
+                            $"formula correct; missing required absolutes: {string.Join(", ", missing)} | got='{sRaw}'"
+                        );
+                    }
                 }
 
-                reasons.Add(kc.HasFormula
-                    ? $"formula='{sNorm}' expected='{kNorm}' (from key); got='{sRaw}'"
-                    : "key cell has no formula");
-                continue;
+                // Optional value check
+                var (ok, detail) = ValueMatches(sCell, rule);
+                if (!ok)
+                {
+                    return new CheckResult(
+                        $"formula:{cellAddr}", pts, 0, false,
+                        $"formula correct (matches key) but value mismatch: {detail} | got formula '{sRaw}'"
+                    );
+                }
+
+                return new CheckResult(
+                    $"formula:{cellAddr}", pts, pts, true,
+                    "formula correct (matches key)" + (requireAbs == true ? " with required absolutes" : "") +
+                    (string.IsNullOrWhiteSpace(detail) ? "" : $" | {detail}")
+                );
             }
 
-            // No expectation configured
+            // No expectation configured in this option
             reasons.Add($"no expected provided ({origin})");
         }
 
@@ -291,6 +444,61 @@ public static class Grader
 
 
 
+
+    // --- Number format analysis helpers -----------------------------------------
+
+    private enum NumFmtKind
+    {
+        Unknown, General, Number, Currency, Accounting, Percent, Scientific, Fraction, Text,
+        DateShort, DateLong, Time, DateTime, Custom
+    }
+
+    private static (NumFmtKind Kind, int? Decimals, string Raw) AnalyzeNumberFormat(string? fmt)
+    {
+        // Normalize and strip bracketed locale/currency sections and color/conditions
+        var raw = (fmt ?? "").Trim();
+        var f = Regex.Replace(raw, @"\[[^\]]*\]", "", RegexOptions.IgnoreCase); // remove [Red], [$-409], etc.
+                                                                                // First section only (before ';')
+        f = f.Split(';')[0].Trim();
+
+        if (string.IsNullOrEmpty(f))
+            return (NumFmtKind.General, null, raw);
+
+        var lower = f.ToLowerInvariant();
+
+        // quick category detection
+        bool hasMonthName = Regex.IsMatch(lower, @"m{3,}");         // mmm or mmmm
+        bool hasDayName = Regex.IsMatch(lower, @"d{3,}");         // ddd or dddd
+        bool hasDateParts = Regex.IsMatch(lower, @"\b[dmysh]\b|d|m|y", RegexOptions.IgnoreCase);
+        bool hasTimeParts = lower.Contains("h") || lower.Contains("s") || lower.Contains("am/pm");
+
+        if (lower == "general") return (NumFmtKind.General, null, raw);
+        if (lower.Contains("%")) return (NumFmtKind.Percent, GetDecimalPlaces(lower), raw);
+        if (lower.Contains("_(") || lower.Contains("* ") || lower.Contains("€ ") && lower.Contains("_"))
+            return (NumFmtKind.Accounting, GetDecimalPlaces(lower), raw);
+        if (lower.Contains("$") || lower.Contains("¥") || lower.Contains("€") || lower.Contains("£") || lower.Contains("₩"))
+            return (NumFmtKind.Currency, GetDecimalPlaces(lower), raw);
+        if (hasDateParts && hasTimeParts) return (NumFmtKind.DateTime, null, raw);
+        if (hasTimeParts) return (NumFmtKind.Time, null, raw);
+        if (hasDateParts)
+            return ((hasMonthName || hasDayName) ? NumFmtKind.DateLong : NumFmtKind.DateShort, null, raw);
+        if (lower.Contains("e+")) return (NumFmtKind.Scientific, GetDecimalPlaces(lower), raw);
+        if (lower.Contains("?/") || lower.Contains("#/")) return (NumFmtKind.Fraction, null, raw);
+        if (lower.Contains("@")) return (NumFmtKind.Text, null, raw);
+
+        // patterns like #,##0.00 or 0.000
+        if (Regex.IsMatch(lower, @"[#0](?:[#,]*[#0])?(?:\.(?<d>0+))?"))
+            return (NumFmtKind.Number, GetDecimalPlaces(lower), raw);
+
+        return (NumFmtKind.Custom, null, raw);
+    }
+
+    private static int? GetDecimalPlaces(string patternLower)
+    {
+        // Look for ".000" or "0.00%" etc. Only in first section.
+        var m = Regex.Match(patternLower.Split(';')[0], @"\.(0+)");
+        return m.Success ? m.Groups[1].Value.Length : (int?)null;
+    }
 
 
     // Helper (unchanged): detect absolute refs
@@ -379,7 +587,14 @@ public static class Grader
 
     private static CheckResult GradeFormat(Rule rule, IXLWorksheet wsS)
     {
-        var cellAddr = rule.Cell ?? throw new Exception("format check missing 'cell'");
+        if (string.IsNullOrWhiteSpace(rule.Cell))
+        {
+            if (!string.IsNullOrWhiteSpace(rule.Range))
+                return GradeRangeFormat(rule, wsS);   // delegate gracefully
+            throw new Exception("format check missing 'cell'");
+        }
+
+        var cellAddr = rule.Cell!;
         var pts = rule.Points;
         var cell = wsS.Cell(cellAddr);
 
@@ -409,7 +624,38 @@ public static class Grader
         if (fmt.Bold is not null && style.Font.Bold != fmt.Bold.Value) reasons.Add("bold");
         if (fmt.Italic is not null && style.Font.Italic != fmt.Italic.Value) reasons.Add("italic");
 
-        if (fmt.NumberFormat is not null && (style.NumberFormat.Format ?? "") != fmt.NumberFormat) reasons.Add("number_format");
+        if (fmt.NumberFormat is not null)
+        {
+            var want = AnalyzeNumberFormat(fmt.NumberFormat);
+            var got = AnalyzeNumberFormat(style.NumberFormat.Format ?? "");
+
+            // If either side is Unknown/Custom, fall back to literal compare so we
+            // don't incorrectly penalize exotic custom patterns.
+            if (want.Kind == NumFmtKind.Custom || want.Kind == NumFmtKind.Unknown ||
+                got.Kind == NumFmtKind.Custom || got.Kind == NumFmtKind.Unknown)
+            {
+                if (!string.Equals(style.NumberFormat.Format ?? "", fmt.NumberFormat, StringComparison.Ordinal))
+                    reasons.Add($"number_format literal ('{style.NumberFormat.Format ?? "General"}' != '{fmt.NumberFormat}')");
+            }
+            else
+            {
+                if (got.Kind != want.Kind)
+                    reasons.Add($"number_format kind ({got.Kind.ToString().ToLower()} != {want.Kind.ToString().ToLower()})");
+
+                // Compare decimals where it’s meaningful
+                bool decimalsMatter =
+                    want.Kind is NumFmtKind.Number or NumFmtKind.Currency or NumFmtKind.Percent or NumFmtKind.Accounting;
+
+                if (decimalsMatter && want.Decimals is not null)
+                {
+                    var gd = got.Decimals ?? 0;
+                    var wd = want.Decimals.Value;
+                    if (gd != wd)
+                        reasons.Add($"decimals ({gd} != {wd})");
+                }
+            }
+        }
+
 
         if (fmt.Fill?.Rgb is not null)
         {
@@ -624,94 +870,191 @@ public static class Grader
     {
         var pts = rule.Points;
         var spec = rule.Chart;
+
+        // Section-aware id that matches the UI grouping rules
+        string SectionIdForSpec()
+        {
+            var sh = spec?.Sheet ?? "";
+            var nm = spec?.NameLike ?? "";
+
+            if (!string.IsNullOrWhiteSpace(nm))
+                return $"chart:{sh}{(string.IsNullOrWhiteSpace(sh) ? "" : "/")}{nm}";
+
+            // prefer TYPE first so column/pie/pie3D separate even if titles are present
+            var typ = spec?.Type ?? "";
+            if (!string.IsNullOrWhiteSpace(sh) && !string.IsNullOrWhiteSpace(typ))
+                return $"chart:{sh}|type={typ.ToLowerInvariant()}";
+
+            // if we fall back to TITLE, include the value to avoid collisions
+            static string NormTitle(string s) =>
+                System.Text.RegularExpressions.Regex.Replace((s ?? "").Trim(), @"\s+", " ").ToLowerInvariant();
+
+            var title = spec?.Title ?? "";
+            if (!string.IsNullOrWhiteSpace(sh) && !string.IsNullOrWhiteSpace(title))
+                return $"chart:{sh}|title={NormTitle(title)}";
+
+            // final fallback: series signature (first ValRef), normalized
+            static string NormRefLocal(string? a1)
+            {
+                var s = (a1 ?? "").Replace("$", "").ToUpperInvariant();
+                int bang = s.IndexOf('!');
+                return bang >= 0 ? s[(bang + 1)..] : s;
+            }
+            var sig = spec?.Series is { Count: > 0 } ? NormRefLocal(spec.Series[0].ValRef) : "";
+            if (!string.IsNullOrWhiteSpace(sh) && !string.IsNullOrWhiteSpace(sig))
+                return $"chart:{sh}|series={sig}";
+
+            return string.IsNullOrWhiteSpace(sh) ? "chart" : $"chart:{sh}";
+        }
+
+
+
         if (spec is null)
-            return new CheckResult("chart", pts, 0, false, "No chart spec provided");
+            return new CheckResult(SectionIdForSpec(), pts, 0, false, "No chart spec provided");
+        EnsureStudentZipBytes(wbS);
+        var zip = _studentZipBytes!;
 
-        if (_studentZipBytes is null)
-            return new CheckResult("chart", pts, 0, false, "Chart checks require workbook bytes");
-
-        var bySheet = ParseChartsFromZip(_studentZipBytes);  // sheet -> charts
+        // Parse ALL charts; only pre-filter by SHEET (not name_like — that's a scored check)
+        var bySheet = ParseChartsFromZip(zip);  // sheet -> charts
         IEnumerable<ChartInfo> pool = bySheet.SelectMany(kv => kv.Value);
         if (!string.IsNullOrWhiteSpace(spec.Sheet))
             pool = pool.Where(c => string.Equals(c.Sheet, spec.Sheet, StringComparison.OrdinalIgnoreCase));
 
-        if (!string.IsNullOrWhiteSpace(spec.NameLike))
-            pool = pool.Where(c => c.Name.IndexOf(spec.NameLike!, StringComparison.OrdinalIgnoreCase) >= 0);
+        if (!pool.Any())
+            return new CheckResult(SectionIdForSpec(), pts, 0, false,
+                string.IsNullOrWhiteSpace(spec.Sheet)
+                    ? "No charts found in workbook"
+                    : $"No charts found on sheet '{spec.Sheet}'");
 
-        // Scoring: each declared attribute is a "check".
-        int checks = 0, hits = 0;
-        var notes = new List<string>();
+        // Helpers for tolerant matching
+        static string NormText(string? s) =>
+            System.Text.RegularExpressions.Regex.Replace((s ?? "").Trim(), @"\s+", " "); // collapse whitespace/newlines
+        static string NormRef(string? a1)
+        {
+            var s = (a1 ?? "").Replace("$", "").ToUpperInvariant();
+            int bang = s.IndexOf('!');
+            return bang >= 0 ? s[(bang + 1)..] : s; // drop sheet name
+        }
 
         ChartInfo? best = null;
+        int checks = 0, hits = 0;
         double bestScore = -1;
+        List<string>? bestNotes = null;
 
         foreach (var ch in pool)
         {
             int cks = 0, ok = 0;
-            void req(bool cond, string okMsg, string badMsg)
-            { cks++; if (cond) { ok++; notes.Add($"{ch.Name}: {okMsg}"); } else notes.Add($"{ch.Name}: {badMsg}"); }
+            var local = new List<string>();
+
+            void req(bool cond, string okMsg, string missMsg)
+            {
+                cks++;
+                if (cond) { ok++; local.Add($"OK   {okMsg}"); }
+                else { local.Add($"MISS {missMsg}"); }
+            }
+
+            // OPTIONAL: object name contains — now a CHECK, not a filter
+            if (!string.IsNullOrWhiteSpace(spec.NameLike))
+                req(ch.Name.IndexOf(spec.NameLike!, StringComparison.OrdinalIgnoreCase) >= 0,
+                    $"name contains '{spec.NameLike}'",
+                    $"name missing '{spec.NameLike}' (got '{ch.Name}')");
 
             // type
             if (!string.IsNullOrWhiteSpace(spec.Type))
                 req(string.Equals(ch.Type, spec.Type, StringComparison.OrdinalIgnoreCase),
-                    $"type={ch.Type}", $"type got {ch.Type} expected {spec.Type}");
+                    $"type={ch.Type}",
+                    $"type got {ch.Type} expected {spec.Type}");
 
-            // title
+            // title (whitespace tolerant)
             if (!string.IsNullOrWhiteSpace(spec.Title))
-                req(string.Equals((ch.Title ?? ""), spec.Title, StringComparison.Ordinal),
-                    $"title='{ch.Title}'", $"title got '{ch.Title ?? ""}' expected '{spec.Title}'");
+                req(string.Equals(NormText(ch.Title), NormText(spec.Title), StringComparison.OrdinalIgnoreCase),
+                    $"title='{ch.Title}'",
+                    $"title got '{ch.Title ?? ""}' expected '{spec.Title}'");
+
+            // title from cell (exact)
             if (!string.IsNullOrWhiteSpace(spec.TitleRef))
                 req(string.Equals((ch.TitleRef ?? ""), spec.TitleRef, StringComparison.OrdinalIgnoreCase),
-                    $"title_ref={ch.TitleRef}", $"title_ref got {ch.TitleRef ?? ""} expected {spec.TitleRef}");
+                    $"title_ref={ch.TitleRef}",
+                    $"title_ref got {ch.TitleRef ?? ""} expected {spec.TitleRef}");
 
-            // legend
+            // legend / labels / axes
             if (!string.IsNullOrWhiteSpace(spec.LegendPos))
                 req(string.Equals((ch.LegendPos ?? ""), spec.LegendPos, StringComparison.OrdinalIgnoreCase),
-                    $"legendPos={ch.LegendPos}", $"legendPos got {ch.LegendPos ?? ""} expected {spec.LegendPos}");
+                    $"legendPos={ch.LegendPos}",
+                    $"legendPos got {ch.LegendPos ?? ""} expected {spec.LegendPos}");
 
-            // data labels
             if (spec.DataLabels.HasValue)
                 req(ch.DataLabels == spec.DataLabels.Value,
-                    $"dataLabels={ch.DataLabels}", $"dataLabels got {ch.DataLabels} expected {spec.DataLabels}");
+                    $"dataLabels={ch.DataLabels}",
+                    $"dataLabels got {ch.DataLabels} expected {spec.DataLabels}");
 
-            // axis titles
             if (!string.IsNullOrWhiteSpace(spec.XTitle))
-                req(string.Equals((ch.XTitle ?? ""), spec.XTitle, StringComparison.Ordinal),
-                    $"xTitle='{ch.XTitle}'", $"xTitle got '{ch.XTitle ?? ""}' expected '{spec.XTitle}'");
-            if (!string.IsNullOrWhiteSpace(spec.YTitle))
-                req(string.Equals((ch.YTitle ?? ""), spec.YTitle, StringComparison.Ordinal),
-                    $"yTitle='{ch.YTitle}'", $"yTitle got '{ch.YTitle ?? ""}' expected '{spec.YTitle}'");
+                req(string.Equals(NormText(ch.XTitle), NormText(spec.XTitle), StringComparison.OrdinalIgnoreCase),
+                    $"xTitle='{ch.XTitle}'",
+                    $"xTitle got '{ch.XTitle ?? ""}' expected '{spec.XTitle}'");
 
-            // series: every specified expected series must be present (match by CatRef+ValRef, optionally name/nameRef)
+            if (!string.IsNullOrWhiteSpace(spec.YTitle))
+                req(string.Equals(NormText(ch.YTitle), NormText(spec.YTitle), StringComparison.OrdinalIgnoreCase),
+                    $"yTitle='{ch.YTitle}'",
+                    $"yTitle got '{ch.YTitle ?? ""}' expected '{spec.YTitle}'");
+
+            // series
             if (spec.Series is { Count: > 0 })
             {
                 foreach (var exp in spec.Series)
                 {
                     cks++;
                     bool found = ch.Series.Any(s =>
-                        (string.IsNullOrWhiteSpace(exp.CatRef) || string.Equals((s.CatRef ?? ""), exp.CatRef, StringComparison.OrdinalIgnoreCase)) &&
-                        (string.IsNullOrWhiteSpace(exp.ValRef) || string.Equals((s.ValRef ?? ""), exp.ValRef, StringComparison.OrdinalIgnoreCase)) &&
-                        (string.IsNullOrWhiteSpace(exp.Name) || string.Equals((s.Name ?? ""), exp.Name, StringComparison.Ordinal)) &&
-                        (string.IsNullOrWhiteSpace(exp.NameRef) || string.Equals((s.NameRef ?? ""), exp.NameRef, StringComparison.OrdinalIgnoreCase))
+                        (string.IsNullOrWhiteSpace(exp.CatRef) || string.Equals(NormRef(s.CatRef), NormRef(exp.CatRef), StringComparison.OrdinalIgnoreCase)) &&
+                        (string.IsNullOrWhiteSpace(exp.ValRef) || string.Equals(NormRef(s.ValRef), NormRef(exp.ValRef), StringComparison.OrdinalIgnoreCase)) &&
+                        (string.IsNullOrWhiteSpace(exp.Name) || string.Equals(NormText(s.Name), NormText(exp.Name), StringComparison.OrdinalIgnoreCase)) &&
+                        (string.IsNullOrWhiteSpace(exp.NameRef) || string.Equals(NormRef(s.NameRef), NormRef(exp.NameRef), StringComparison.OrdinalIgnoreCase))
                     );
-                    if (found) { ok++; notes.Add($"{ch.Name}: series ok ({exp.CatRef} / {exp.ValRef})"); }
-                    else notes.Add($"{ch.Name}: series missing ({exp.CatRef} / {exp.ValRef})");
+                    if (found) { ok++; local.Add($"OK   series ({exp.CatRef} / {exp.ValRef})"); }
+                    else { local.Add($"MISS series ({exp.CatRef} / {exp.ValRef})"); }
                 }
             }
 
-            // choose best chart (most hits)
+            // choose best by hit ratio
             double score = (cks == 0) ? 0 : (double)ok / cks;
-            if (score > bestScore) { bestScore = score; best = ch; checks = cks; hits = ok; }
+            if (score > bestScore)
+            {
+                bestScore = score; best = ch; checks = cks; hits = ok; bestNotes = local;
+            }
         }
 
-        if (best == null)
-            return new CheckResult("chart", pts, 0, false, "No charts matched the selection pool");
+        if (best is null)
+            return new CheckResult(SectionIdForSpec(), pts, 0, false, "No charts found to evaluate");
 
         double earned = (checks == 0) ? 0 : pts * (double)hits / checks;
         bool pass = hits == checks;
-        return new CheckResult($"chart:{best.Sheet}/{best.Name}", pts, earned, pass,
-            $"matched {hits}/{checks} checks; type={best.Type}; title='{best.Title ?? ""}'");
+
+        // Build concise misses list
+        string missedSummary = "";
+        if (!pass && bestNotes is not null)
+        {
+            var misses = bestNotes.Where(n => n.StartsWith("MISS"))
+                                  .Select(n => n.Substring(5))
+                                  .Take(6).ToList();
+            if (misses.Count > 0)
+            {
+                int totalMiss = bestNotes.Count(n => n.StartsWith("MISS"));
+                missedSummary = "; missed: " + string.Join("; ", misses) + (totalMiss > misses.Count ? " …" : "");
+            }
+        }
+
+        // build the id the same way we did for early returns (so sections stay distinct)
+        var successId = SectionIdForSpec();
+
+        // build the comment (same text you already return today)
+        var comment = $"matched {hits}/{checks} checks{missedSummary}; type={best.Type}; title='{best.Title ?? ""}'";
+
+        return new CheckResult(successId, pts, earned, pass, comment);
+
     }
+
+
+
 
     // Parse charts via OOXML
     private static Dictionary<string, List<ChartInfo>> ParseChartsFromZip(byte[] zipBytes)
@@ -926,7 +1269,13 @@ public static class Grader
         var pts = rule.Points;
         var spec = rule.Pivot;
         if (spec is null)
-            return new CheckResult("pivot_layout", pts, 0, false, "No pivot spec provided");
+            return new CheckResult("pivot", pts, 0, false, "No pivot spec provided");
+
+        // Helper for section-aware id like "pivot:Summary/SalesPivot"
+        string PivotId() =>
+            (!string.IsNullOrWhiteSpace(spec.Sheet) || !string.IsNullOrWhiteSpace(spec.TableNameLike))
+            ? $"pivot:{spec.Sheet ?? ""}{(!string.IsNullOrWhiteSpace(spec.Sheet) && !string.IsNullOrWhiteSpace(spec.TableNameLike) ? "/" : "")}{spec.TableNameLike ?? ""}"
+            : "pivot";
 
         // choose sheets
         var sheets = string.IsNullOrWhiteSpace(spec.Sheet)
@@ -936,19 +1285,14 @@ public static class Grader
         // helpers (reflection-safe)
         static IEnumerable<object> AsEnumerable(object? obj)
             => (obj as System.Collections.IEnumerable)?.Cast<object>() ?? Enumerable.Empty<object>();
-
         static string S(object? o) => o?.ToString() ?? "";
-
         static string FirstNonEmpty(params string?[] items)
             => items.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "";
-
         static string? GetStrProp(object o, string name)
             => o.GetType().GetProperty(name)?.GetValue(o)?.ToString();
-
         static IEnumerable<object> GetEnumProp(object o, string name)
             => AsEnumerable(o.GetType().GetProperty(name)?.GetValue(o));
 
-        // normalize agg tokens
         static string NormAgg(string raw)
         {
             var a = (raw ?? "").ToLowerInvariant();
@@ -957,14 +1301,13 @@ public static class Grader
             if (a.Contains("avg") || a.Contains("average")) return "average";
             if (a.Contains("min")) return "min";
             if (a.Contains("max")) return "max";
-            return string.IsNullOrWhiteSpace(a) ? "sum" : a; // default
+            return string.IsNullOrWhiteSpace(a) ? "sum" : a;
         }
 
         var findings = new List<string>();
 
         foreach (var ws in sheets)
         {
-            // ws.PivotTables (unknown concrete type → reflection)
             var pivotsObj = ws.GetType().GetProperty("PivotTables")?.GetValue(ws);
             var pivots = AsEnumerable(pivotsObj);
             if (!pivots.Any()) continue;
@@ -973,76 +1316,56 @@ public static class Grader
             {
                 var ptName = GetStrProp(pt, "Name") ?? "";
 
-                // optional name filter
                 if (!string.IsNullOrWhiteSpace(spec.TableNameLike) &&
                     ptName.IndexOf(spec.TableNameLike, StringComparison.OrdinalIgnoreCase) < 0)
-                {
                     continue;
-                }
 
-                // Collect fields using reflection (works across ClosedXML versions)
                 HashSet<string> actualRows = new(StringComparer.OrdinalIgnoreCase);
                 foreach (var f in GetEnumProp(pt, "RowLabels"))
-                {
                     actualRows.Add(FirstNonEmpty(GetStrProp(f, "SourceName"), GetStrProp(f, "CustomName"), GetStrProp(f, "Name")));
-                }
 
                 HashSet<string> actualCols = new(StringComparer.OrdinalIgnoreCase);
                 foreach (var f in GetEnumProp(pt, "ColumnLabels"))
-                {
                     actualCols.Add(FirstNonEmpty(GetStrProp(f, "SourceName"), GetStrProp(f, "CustomName"), GetStrProp(f, "Name")));
-                }
 
                 HashSet<string> actualFilters = new(StringComparer.OrdinalIgnoreCase);
                 foreach (var f in GetEnumProp(pt, "ReportFilters"))
-                {
                     actualFilters.Add(FirstNonEmpty(GetStrProp(f, "SourceName"), GetStrProp(f, "CustomName"), GetStrProp(f, "Name")));
-                }
 
                 HashSet<string> actualValues = new(StringComparer.OrdinalIgnoreCase);
                 foreach (var v in GetEnumProp(pt, "Values"))
                 {
                     var fieldName = FirstNonEmpty(GetStrProp(v, "SourceName"), GetStrProp(v, "CustomName"), GetStrProp(v, "Name"));
                     if (string.IsNullOrWhiteSpace(fieldName)) continue;
-
-                    // Try SummaryFormula (enum), then Function, then just ToString
-                    var sf = GetStrProp(v, "SummaryFormula")
-                             ?? GetStrProp(v, "Function")
-                             ?? S(v);
-
+                    var sf = GetStrProp(v, "SummaryFormula") ?? GetStrProp(v, "Function") ?? S(v);
                     var agg = NormAgg(sf ?? "");
                     actualValues.Add($"{fieldName}|{agg}");
                 }
 
-                // compare
                 var missing = new List<string>();
-                if (spec.Rows is { Count: > 0 })
-                    foreach (var need in spec.Rows) if (!actualRows.Contains(need)) missing.Add($"row '{need}'");
-                if (spec.Columns is { Count: > 0 })
-                    foreach (var need in spec.Columns) if (!actualCols.Contains(need)) missing.Add($"column '{need}'");
-                if (spec.Filters is { Count: > 0 })
-                    foreach (var need in spec.Filters) if (!actualFilters.Contains(need)) missing.Add($"filter '{need}'");
+                if (spec.Rows is { Count: > 0 }) foreach (var need in spec.Rows) if (!actualRows.Contains(need)) missing.Add($"row '{need}'");
+                if (spec.Columns is { Count: > 0 }) foreach (var need in spec.Columns) if (!actualCols.Contains(need)) missing.Add($"column '{need}'");
+                if (spec.Filters is { Count: > 0 }) foreach (var need in spec.Filters) if (!actualFilters.Contains(need)) missing.Add($"filter '{need}'");
                 if (spec.Values is { Count: > 0 })
-                {
                     foreach (var need in spec.Values)
-                    {
-                        var wantAgg = NormAgg(need.Agg ?? "sum");
-                        if (!actualValues.Contains($"{need.Field}|{wantAgg}"))
-                            missing.Add($"value '{need.Field}' with agg '{wantAgg}'");
-                    }
-                }
+                        if (!actualValues.Contains($"{need.Field}|{NormAgg(need.Agg ?? "sum")}"))
+                            missing.Add($"value '{need.Field}' with agg '{NormAgg(need.Agg ?? "sum")}'");
 
                 if (missing.Count == 0)
-                    return new CheckResult($"pivot_layout:{ws.Name}", pts, pts, true, $"pivot '{ptName}' OK");
+                    return new CheckResult($"pivot:{ws.Name}/{(spec.TableNameLike ?? ptName)}", pts, pts, true,
+                        $"pivot '{ptName}' OK");
 
                 findings.Add($"pivot '{ptName}' missing: {string.Join(", ", missing)}");
             }
         }
 
         if (findings.Count == 0)
-            return new CheckResult("pivot_layout", pts, 0, false, "No pivot tables found or pivot APIs not exposed in this ClosedXML version");
-        return new CheckResult("pivot_layout", pts, 0, false, string.Join(" | ", findings));
+            return new CheckResult(PivotId(), pts, 0, false,
+                "No pivot tables found or pivot APIs not exposed in this ClosedXML version");
+
+        return new CheckResult(PivotId(), pts, 0, false, string.Join(" | ", findings));
     }
+
 
     // =====================
     // CONDITIONAL FORMATTING
@@ -1231,11 +1554,18 @@ public static class Grader
         if (spec is null)
             return new CheckResult("table", pts, 0, false, "No table spec provided");
 
+        // Helper to build a section-aware id like "table:Sales/MyTableLike"
+        string TableId() =>
+            (!string.IsNullOrWhiteSpace(spec.Sheet) || !string.IsNullOrWhiteSpace(spec.NameLike))
+            ? $"table:{spec.Sheet ?? ""}{(!string.IsNullOrWhiteSpace(spec.Sheet) && !string.IsNullOrWhiteSpace(spec.NameLike) ? "/" : "")}{spec.NameLike ?? ""}"
+            : "table";
+
         // Sheet gating
         if (!string.IsNullOrWhiteSpace(spec.Sheet) &&
             !string.Equals(spec.Sheet, wsS.Name, StringComparison.OrdinalIgnoreCase))
         {
-            return new CheckResult("table", pts, 0, false, $"Expected on sheet '{spec.Sheet}', grading '{wsS.Name}'");
+            return new CheckResult(TableId(), pts, 0, false,
+                $"Expected on sheet '{spec.Sheet}', grading '{wsS.Name}'");
         }
 
         // Candidate tables
@@ -1244,7 +1574,7 @@ public static class Grader
             tables = tables.Where(t => t.Name.IndexOf(spec.NameLike!, StringComparison.OrdinalIgnoreCase) >= 0);
 
         if (!tables.Any())
-            return new CheckResult("table", pts, 0, false,
+            return new CheckResult(TableId(), pts, 0, false,
                 $"No table {(string.IsNullOrWhiteSpace(spec.NameLike) ? "" : $"matching '{spec.NameLike}' ")}found on '{wsS.Name}'");
 
         int checksTotal = 0, bestHits = -1;
@@ -1281,7 +1611,7 @@ public static class Grader
                 }
             }
 
-            // ---------- RANGE REF (full table range, incl. header) ----------
+            // ---------- RANGE REF ----------
             if (!string.IsNullOrWhiteSpace(spec.RangeRef))
             {
                 cks++;
@@ -1292,15 +1622,14 @@ public static class Grader
                     int bang = spec.RangeRef!.IndexOf('!');
                     if (bang >= 0) { sheetPart = spec.RangeRef!.Substring(0, bang); addrPart = spec.RangeRef!.Substring(bang + 1); }
                     var sh = string.Equals(sheetPart, wsS.Name, StringComparison.OrdinalIgnoreCase)
-                        ? wsS
-                        : wsS.Workbook.Worksheet(sheetPart);
+                        ? wsS : wsS.Workbook.Worksheet(sheetPart);
 
                     var expected = sh.Range(addrPart).RangeAddress;
                     var got = t.RangeAddress;
                     ok = got.FirstAddress.RowNumber == expected.FirstAddress.RowNumber
-                         && got.FirstAddress.ColumnNumber == expected.FirstAddress.ColumnNumber
-                         && got.LastAddress.RowNumber == expected.LastAddress.RowNumber
-                         && got.LastAddress.ColumnNumber == expected.LastAddress.ColumnNumber;
+                      && got.FirstAddress.ColumnNumber == expected.FirstAddress.ColumnNumber
+                      && got.LastAddress.RowNumber == expected.LastAddress.RowNumber
+                      && got.LastAddress.ColumnNumber == expected.LastAddress.ColumnNumber;
                 }
                 catch { ok = false; }
 
@@ -1328,11 +1657,10 @@ public static class Grader
                 else notes.Add($"cols {bodyCols} not {(spec.AllowExtraCols == true ? ">=" : "=")} {spec.Cols}");
             }
 
-            // ---------- CONTAINS ROWS (subset match) ----------
+            // ---------- CONTAINS ROWS ----------
             if (spec.ContainsRows is { Count: > 0 })
             {
-                var idxByName = headers
-                    .Select((h, i) => (h, i))
+                var idxByName = headers.Select((h, i) => (h, i))
                     .ToDictionary(x => x.h, x => x.i, StringComparer.OrdinalIgnoreCase);
 
                 foreach (var required in spec.ContainsRows)
@@ -1364,25 +1692,22 @@ public static class Grader
             {
                 cks++;
 
-                // student values (formatted)
                 var sBody = new List<List<string>>();
                 if (body != null)
                 {
                     foreach (var r in body.Rows())
                     {
                         var rowVals = new List<string>();
-                        foreach (var c in r.Cells())
-                            rowVals.Add(c.GetFormattedString() ?? "");
+                        foreach (var c in r.Cells()) rowVals.Add(c.GetFormattedString() ?? "");
                         sBody.Add(rowVals);
                     }
                 }
 
-                bool trim = spec.BodyTrim != false;           // default true
+                bool trim = spec.BodyTrim != false;
                 bool caseSens = spec.BodyCaseSensitive == true;
                 string Norm(string x) => trim ? (x ?? "").Trim() : (x ?? "");
                 StringComparer cmp = caseSens ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 
-                // shape must match
                 bool shapeOk = sBody.Count == spec.BodyRows.Count &&
                                (sBody.Count == 0 || sBody[0].Count == spec.BodyRows[0].Count);
 
@@ -1420,13 +1745,17 @@ public static class Grader
         }
 
         if (checksTotal == 0)
-            return new CheckResult("table", pts, 0, false, "No checks declared (add columns / range_ref / rows/cols / contains_rows / body_match).");
+            return new CheckResult(TableId(), pts, 0, false,
+                "No checks declared (add columns / range_ref / rows/cols / contains_rows / body_match).");
 
         double frac = (double)bestHits / checksTotal;
         double earned = pts * frac;
         bool pass = Math.Abs(frac - 1.0) < 1e-9;
-        return new CheckResult($"table:{bestName}", pts, earned, pass, bestNote);
+
+        // Success id includes sheet + nameLike (so it groups under your section)
+        return new CheckResult($"table:{wsS.Name}/{(spec.NameLike ?? bestName)}", pts, earned, pass, bestNote);
     }
+
 
 
 
@@ -1586,6 +1915,13 @@ public static class Grader
     // HELPERS
     // =====================
 
+    //private static void EnsureStudentZipBytes(XLWorkbook wbS)
+    //{
+    //    if (_studentZipBytes != null) return;
+    //    using var ms = new MemoryStream();
+    //    wbS.SaveAs(ms);                        // serialize current student workbook
+    //    _studentZipBytes = ms.ToArray();       // set bytes so chart/pivot parsers can read OOXML parts
+    //}
     private static (bool ok, string reason) AnyOfMatch(List<RuleOption> options, Func<RuleOption, (bool ok, string reason)> check)
     {
         var reasons = new List<string>();
@@ -1740,6 +2076,83 @@ public static class Grader
         return "";
     }
 
+    private static string? GetExpectedLiteral(Rule rr)
+    {
+        if (rr.Expected is null) return null;
+
+        if (rr.Expected is System.Text.Json.JsonElement je)
+        {
+            return je.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.String => je.GetString(),
+                System.Text.Json.JsonValueKind.Number =>
+                    je.TryGetDouble(out var d)
+                        ? d.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : je.ToString(),
+                System.Text.Json.JsonValueKind.True => "TRUE",
+                System.Text.Json.JsonValueKind.False => "FALSE",
+                System.Text.Json.JsonValueKind.Null => null,
+                _ => je.ToString()
+            };
+        }
+
+        return rr.Expected.ToString();
+    }
+
+    // Returns (ok, detailMessage). If no expected value is configured => ok=true.
+    private static (bool ok, string detail) ValueMatches(IXLCell cell, Rule r)
+    {
+        var expectedLiteral = GetExpectedLiteral(r);     // ← normalized string/number/bool
+        var expectedRegex = r.ExpectedRegex;
+
+        // nothing to check
+        if (string.IsNullOrWhiteSpace(expectedRegex) && string.IsNullOrWhiteSpace(expectedLiteral))
+            return (true, "");
+
+        // what the grader "sees"
+        var studentText = cell.GetFormattedString();
+        if (string.IsNullOrWhiteSpace(studentText))
+            studentText = cell.GetString(); // fallback to raw
+
+        // regex has priority
+        if (!string.IsNullOrWhiteSpace(expectedRegex))
+        {
+            bool pass = Regex.IsMatch(studentText, expectedRegex!, RegexOptions.IgnoreCase);
+            return pass
+                ? (true, "value matches regex")
+                : (false, $"value '{studentText}' !~ /{expectedRegex}/");
+        }
+
+        // otherwise compare against expected literal (numeric tolerant)
+        var want = expectedLiteral ?? "";
+
+        static bool TryParseNumber(string s, out double v)
+        {
+            var raw = s.Trim();
+            var isPct = raw.EndsWith("%", StringComparison.Ordinal);
+            raw = raw.Replace("%", "").Replace(",", "");
+            raw = new string(raw.Where(ch => char.IsDigit(ch) || ch == '-' || ch == '.').ToArray());
+            var ok = double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                     System.Globalization.CultureInfo.InvariantCulture, out v);
+            if (ok && isPct) v /= 100.0;
+            return ok;
+        }
+
+        if (TryParseNumber(studentText, out var gotNum) && TryParseNumber(want, out var expNum))
+        {
+            var tol = r.Tolerance ?? 0.0;
+            bool pass = Math.Abs(gotNum - expNum) <= Math.Abs(tol);
+            return pass
+                ? (true, $"value {gotNum}≈{expNum} (±{tol})")
+                : (false, $"value {gotNum}≠{expNum} (tol {tol})");
+        }
+
+        // string compare (case-insensitive)
+        bool textPass = string.Equals(studentText.Trim(), want.Trim(), StringComparison.OrdinalIgnoreCase);
+        return textPass
+            ? (true, "value text matches")
+            : (false, $"value text got '{studentText}' expected '{want}'");
+    }
 
 
     private static bool ArgbEqual(string a, string b) => NormalizeArgb(a) == NormalizeArgb(b);

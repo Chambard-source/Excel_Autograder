@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.IO;
+﻿using System.Globalization;
 using System.IO.Compression;
 using System.Xml.Linq;
 using ClosedXML.Excel;
+using System.Text.Json;
 
 public static class RubricAuto
 {
@@ -217,7 +214,8 @@ public static class RubricAuto
                 Points = 1.5,
                 Cell = summaryAddr,
                 Note = "Summary formula",
-                ExpectedFromKey = true
+                ExpectedFromKey = true,
+                Expected = JsonSerializer.SerializeToElement(KeyCellExpectedText(summaryCell))
             });
 
             // If the key’s summary uses absolutes, require a $ reference to be present (regex)
@@ -334,8 +332,9 @@ public static class RubricAuto
                 Points = 0.5,                       // UI will rescale later
                 Cell = a1,
                 Note = "Formula from key",
-                ExpectedFromKey = true,             // grading uses the key formula
-                ExpectedFormula = f                 // UI can display it for review
+                ExpectedFromKey = true,
+                ExpectedFormula = f,                // UI can display it for review
+                Expected = JsonSerializer.SerializeToElement(KeyCellExpectedText(c))
             };
             if (HasAbsoluteRef(f))
                 r.RequireAbsolute = true;
@@ -783,6 +782,40 @@ public static class RubricAuto
         if (s.Length > 0 && s[0] != '=') s = "=" + s;
         return s;
     }
+
+    private static string? KeyCellExpectedText(IXLCell kc)
+    {
+        // 1) Prefer what Excel displays (honors number formats, % etc.)
+        var s = kc.GetFormattedString();
+        if (!string.IsNullOrWhiteSpace(s)) return s;
+
+        // 2) Fall back to an invariant representation by data type
+        switch (kc.DataType)
+        {
+            case XLDataType.Number:
+                return kc.GetValue<double>().ToString(CultureInfo.InvariantCulture);
+
+            case XLDataType.Boolean:
+                return kc.GetValue<bool>() ? "TRUE" : "FALSE";
+
+            case XLDataType.DateTime:
+                return kc.GetValue<DateTime>().ToString(CultureInfo.InvariantCulture);
+
+            case XLDataType.Text:
+                return kc.GetString();
+
+            case XLDataType.TimeSpan:
+                return kc.GetValue<TimeSpan>().ToString();
+
+            case XLDataType.Blank:
+                return null; // nothing to show
+
+            default:
+                // XLCellValue is a struct (never null) → no ?.
+                return kc.Value.ToString();
+        }
+    }
+
 
     private static bool TryToInt(object? v, out int n)
     {

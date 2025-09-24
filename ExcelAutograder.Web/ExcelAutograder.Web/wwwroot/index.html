@@ -22,13 +22,13 @@
             margin: 0;
             background: var(--bg);
             color: var(--ink);
-            font: 14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial
+            font: 14px/1.4 system-ui, Segoe UI, Roboto, Helvetica, Arial;
         }
 
         h1 {
             font-weight: 700;
             letter-spacing: .3px;
-            margin: 18px 0
+            margin: 18px 0;
         }
 
         * {
@@ -42,8 +42,7 @@
             box-sizing: border-box;
         }
 
-
-
+        /* ---------- Grid rows ---------- */
         .row {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -53,9 +52,8 @@
             /* TOP PAIR ONLY: enforce a visible gap and sane min width */
             .row.row-top {
                 grid-template-columns: 1fr 1fr;
-                gap: 10px !important; /* <- guaranteed gutter */
+                gap: 10px !important; /* guaranteed gutter */
             }
-
                 /* allow children to shrink rather than push across the gap */
                 .row.row-top > * {
                     min-width: 0;
@@ -68,11 +66,12 @@
             }
         }
 
+        /* ---------- Cards ---------- */
         .card {
             background: var(--panel);
             border: 1px solid var(--muted);
             border-radius: 10px;
-            padding: 16px
+            padding: 16px;
         }
 
         .card, .builder-card, #resultsCard {
@@ -84,18 +83,18 @@
         .stack {
             display: flex;
             flex-direction: column;
-            gap: 8px
+            gap: 8px;
         }
 
         .hstack {
             display: flex;
             gap: 8px;
             align-items: center;
-            flex-wrap: wrap
+            flex-wrap: wrap;
         }
 
         label small {
-            color: var(--ink2)
+            color: var(--ink2);
         }
 
         input[type="text"], input[type="number"], textarea, select {
@@ -105,11 +104,11 @@
             color: var(--ink);
             padding: 8px 10px;
             outline: none;
-            min-width: 0
+            min-width: 0;
         }
 
         input[type="file"] {
-            color: var(--ink2)
+            color: var(--ink2);
         }
 
         textarea {
@@ -122,8 +121,8 @@
         }
 
         #jsonBox {
-            width: 100%; /* already ok, but explicit */
-            min-height: clamp(160px, 24vh, 220px); /* grow on tall screens, never tiny */
+            width: 100%;
+            min-height: clamp(160px, 24vh, 220px);
         }
 
         button {
@@ -132,35 +131,35 @@
             color: var(--ink);
             padding: 8px 12px;
             border-radius: 8px;
-            cursor: pointer
+            cursor: pointer;
         }
 
             button.primary {
                 background: var(--accent);
                 border-color: transparent;
-                color: #06131f
+                color: #06131f;
             }
 
             button.danger {
                 background: #3b1a1a;
-                border-color: #5b2a2a
+                border-color: #5b2a2a;
             }
 
             button.ghost {
-                background: #0e131b
+                background: #0e131b;
             }
 
         .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px
+            gap: 12px;
         }
 
         .sheet {
             border: 1px dashed #2b3748;
             border-radius: 10px;
             padding: 12px;
-            margin-top: 12px
+            margin-top: 12px;
         }
 
         .rule {
@@ -178,7 +177,6 @@
                 gap: 10px;
                 align-items: center; /* prevents tall stretch */
             }
-
                 /* make inputs/selects same height as the icon buttons */
                 .rule .row input[type="text"],
                 .rule .row input[type="number"],
@@ -227,12 +225,11 @@
                 display: none;
             }
 
-
         .hidden {
             display: none !important;
         }
 
-        /* ---- Table rule preview polish ---- */
+        /* ---------- Table rule preview polish ---------- */
         .preview-card {
             border: 1px solid #2a2a2a;
             border-radius: 10px;
@@ -274,10 +271,10 @@
         }
 
         .scroll-wrap {
-            max-height: 240px;
+            max-height: 220px;
             overflow: auto;
             border: 1px solid #2a2a2a;
-            border-radius: 8px;
+            border-radius: 6px;
         }
 
         .mini-table {
@@ -313,29 +310,8 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* small helper */
         .muted {
             color: #9aa0a6;
-        }
-
-        .scroll-wrap {
-            max-height: 220px;
-            overflow: auto;
-            border: 1px solid #2a2a2a;
-            border-radius: 6px;
-        }
-
-        .chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        .chip {
-            font-size: 11px;
-            padding: 2px 6px;
-            border: 1px solid #2a2a2a;
-            border-radius: 999px;
         }
 
         .mono {
@@ -353,77 +329,69 @@
 
         .tiny {
             font-size: 12px;
-            color: var(--ink2)
+            color: var(--ink2);
         }
 
         .pill {
             padding: 2px 8px;
             border-radius: 999px;
             background: #1f2937;
-            border: 1px solid #2a3647
+            border: 1px solid #2a3647;
         }
 
         .spacer {
-            height: 8px
+            height: 8px;
         }
 
         .right {
-            margin-left: auto
-        }
-
-        .muted {
-            color: var(--ink2)
+            margin-left: auto;
         }
 
         .hr {
             height: 1px;
             background: #223046;
-            margin: 12px 0
+            margin: 12px 0;
         }
 
         .checkbox {
             display: inline-flex;
             align-items: center;
-            gap: 6px
+            gap: 6px;
         }
 
         table {
             border-collapse: collapse;
-            width: 100%
+            width: 100%;
         }
 
         th, td {
             border: 1px solid #263041;
             padding: 6px 8px;
-            vertical-align: top
+            vertical-align: top;
         }
 
         th {
             background: #0e151f;
-            font-weight: 600
+            font-weight: 600;
         }
 
         .tag {
             display: inline-block;
             padding: 1px 8px;
             border-radius: 999px;
-            font-size: 12px
+            font-size: 12px;
         }
 
         .pass {
             background: #103a22;
             border: 1px solid #1e6d42;
-            color: #c8f7dc
+            color: #c8f7dc;
         }
 
         .fail {
             background: #3a1010;
             border: 1px solid #6d1e1e;
-            color: #f7c8c8
-        }
-
-        .mono {
-            font-family: ui-monospace,SFMono,Consolas,monospace
+            color: #f7c8c8;
         }
 
         #resultsCard.only-misses [data-status="pass"] {
@@ -698,65 +666,68 @@
         }
 
         function ruleBlock(spec, r, idx) {
-            const b = el('div', 'rule'), row1 = el('div', 'row');
-            const typeSel = el('select'); RULE_TYPES.forEach(t => { const o = el('option'); o.value = t; o.textContent = t; if (t === r.type) o.selected = true; typeSel.append(o); });
+            const b = el('div', 'rule');
+            const row1 = el('div', 'row');          // header row
+
+            // --- controls you already create ---
+            const typeSel = el('select');
+            RULE_TYPES.forEach(t => {
+                const o = el('option'); o.value = t; o.textContent = t;
+                if (t === r.type) o.selected = true;
+                typeSel.append(o);
+            });
             const pts = el('input'); pts.type = 'number'; pts.step = '0.25'; pts.min = '0'; pts.value = r.points ?? 1;
             const cell = el('input'); cell.placeholder = 'e.g. B12'; cell.value = r.cell ?? '';
             const range = el('input'); range.placeholder = 'e.g. A2:B11'; range.value = r.range ?? '';
             const note = el('input'); note.placeholder = 'Note'; note.value = r.note ?? '';
+
+            // gentle sizing so the row looks neat
+            typeSel.style.minWidth = '160px';
+            pts.style.width = '84px';
+            cell.style.width = '140px';
+            range.style.width = '220px';
+            note.style.width = '240px';
+
+            // Section
             const section = el('input');
             section.placeholder = 'Section (optional, e.g., SUMIFS)';
-            const labelledSection = labelled(section, 'Section');
-            labelledSection.classList.add('section');
             section.value = r.section ?? '';
             section.onchange = () => { r.section = (section.value || '').trim() || null; refreshJsonPreview(); };
+            const labelledSection = labelled(section, 'Section');
+            labelledSection.classList.add('section');   // <- lets CSS size it
 
-            // tiny move helpers
-            const btnUp = el('button', 'ghost', '▲');   // tip: ▲/▼ are same width in most fonts
-            const btnDown = el('button', 'ghost', '▼');
-
-            btnUp.classList.add('btn-icon');
-            btnDown.classList.add('btn-icon');
-
-            btnUp.title = 'Move up';
-            btnDown.title = 'Move down';
-
-            const arrows = el('div');
-            arrows.className = 'arrows';
-            arrows.style.display = 'flex';
+            // Move buttons
+            const btnUp = el('button', 'ghost btn-icon', '▲');
+            const btnDown = el('button', 'ghost btn-icon', '▼');
+            btnUp.title = 'Move up'; btnDown.title = 'Move down';
+            const arrows = el('div', 'arrows hstack');   // <- has the reserved width
             arrows.style.flexDirection = 'column';
             arrows.style.gap = '6px';
             arrows.append(btnUp, btnDown);
 
             btnUp.onclick = () => {
-                if (idx > 0) {
-                    const tmp = spec.checks[idx - 1];
-                    spec.checks[idx - 1] = spec.checks[idx];
-                    spec.checks[idx] = tmp;
-                    render();
-                }
+                if (idx > 0) { [spec.checks[idx - 1], spec.checks[idx]] = [spec.checks[idx], spec.checks[idx - 1]]; render(); }
             };
             btnDown.onclick = () => {
-                if (idx < spec.checks.length - 1) {
-                    const tmp = spec.checks[idx + 1];
-                    spec.checks[idx + 1] = spec.checks[idx];
-                    spec.checks[idx] = tmp;
-                    render();
-                }
+                if (idx < spec.checks.length - 1) { [spec.checks[idx + 1], spec.checks[idx]] = [spec.checks[idx], spec.checks[idx + 1]]; render(); }
             };
 
+            // ✅ wrap Type in 'labelled' so sizing CSS applies
             row1.append(
                 arrows,
-                labelledSection,                // <-- was labelled(section, 'Section')
-                typeSel,
+                labelledSection,
+                labelled(typeSel, 'Type'),
                 labelled(pts, 'Pts'),
                 labelled(cell, 'Cell'),
-                labelled(range, 'Range'),
-                labelled(note, 'Note')
+                labelled(range, 'Range')
+                // (leave NOTE for row2 below to keep header compact)
             );
             b.append(row1);
 
-            const row2 = el('div', 'hstack');
+            // Optional: put Note on its own row to avoid cramping the header
+            const row2 = el('div', 'row');
+            row2.append(labelled(note, 'Note'));
+            b.append(row2);
 
             const exf = el('input'); exf.placeholder = 'Expected formula (=A1+...)'; exf.style.width = '220px'; exf.value = r.expected_formula ?? '';
             const regex = el('input'); regex.placeholder = 'Regex (optional)'; regex.style.width = '200px'; regex.value = r.expected_formula_regex ?? '';
@@ -778,6 +749,66 @@
             pvRows.style.width = pvCols.style.width = pvFil.style.width = '260px';
 
             const pvValuesUI = pivotValuesBlock(r, refreshJsonPreview);
+
+
+            // ---------- Number-format UI helpers (kind <-> pattern) ----------
+
+            const FMT_KIND_ORDER = [
+                'general', 'number', 'currency', 'accounting', 'percent',
+                'short_date', 'long_date', 'time', 'datetime', 'scientific', 'fraction', 'text', 'custom'
+            ];
+
+            function fmtPatternFrom(kind, decimals) {
+                const d = Math.max(0, Number(decimals || 0));
+                const dot = d > 0 ? '.' + '0'.repeat(d) : '';
+
+                switch (kind) {
+                    case 'general': return 'General';
+                    case 'number': return '#,##0' + dot;
+                    case 'currency': return '$#,##0' + dot;
+                    case 'accounting': return '_($* #,##0' + dot + '_);_($* (#,##0' + dot + '_);_($* "-"??_);_(@_)';
+                    case 'percent': return '0' + dot + '%';
+                    case 'short_date': return 'm/d/yy';
+                    case 'long_date': return 'mmmm d, yyyy';
+                    case 'time': return 'h:mm AM/PM';
+                    case 'datetime': return 'm/d/yy h:mm AM/PM';
+                    case 'scientific': return '0' + (d > 0 ? ('.' + '0'.repeat(d)) : '.0') + 'E+00';
+                    case 'fraction': return '# ?/?';
+                    case 'text': return '@';
+                    case 'custom': return ''; // user will type in the text box
+                    default: return '';
+                }
+            }
+
+            // Rough guesser to prefill dropdown/spinner from an existing pattern
+            function guessKindAndDecimals(fmt) {
+                const raw = (fmt || '').trim();
+                const first = raw.split(';')[0];
+                const lower = first.toLowerCase();
+
+                const decs = (() => {
+                    const m = /(?:^|;)[^;]*\.(0+)/.exec(first);
+                    return m ? m[1].length : null;
+                })();
+
+                if (!raw || lower === 'general') return { kind: 'general', decimals: null, raw };
+                if (lower.includes('%')) return { kind: 'percent', decimals: decs ?? 0, raw };
+                if (lower.includes('_(') || lower.includes('* ') || (lower.includes('$') && lower.includes('_')))
+                    return { kind: 'accounting', decimals: decs ?? 0, raw };
+                if (/\$|€|£|¥|₩/.test(first)) return { kind: 'currency', decimals: decs ?? 2, raw };
+                if (lower.includes('e+')) return { kind: 'scientific', decimals: decs ?? 1, raw };
+                if (lower.includes('@')) return { kind: 'text', decimals: null, raw };
+                if (lower.includes('?/')) return { kind: 'fraction', decimals: null, raw };
+                const hasD = /d/.test(lower), hasM = /m/.test(lower), hasY = /y/.test(lower),
+                    hasH = /h/.test(lower), hasS = /s/.test(lower), hasAM = lower.includes('am/pm');
+                if ((hasD || hasM || hasY) && (hasH || hasS || hasAM)) return { kind: 'datetime', decimals: null, raw };
+                if (hasH || hasS || hasAM) return { kind: 'time', decimals: null, raw };
+                if (/(mmm|dddd)/i.test(first)) return { kind: 'long_date', decimals: null, raw };
+                if (hasD || hasM || hasY) return { kind: 'short_date', decimals: null, raw };
+                if (/[#0]/.test(first)) return { kind: 'number', decimals: decs ?? 0, raw };
+                return { kind: 'custom', decimals: null, raw };
+            }
+
 
             function showFor(type) {
                 row2.innerHTML = '';
@@ -810,6 +841,34 @@
 
                 if (type === 'formula') {
                     row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap);
+
+                    // --- Expected VALUE (of the evaluated formula) + absolute TOLERANCE ---
+                    const expVal = el('input');
+                    expVal.placeholder = 'e.g. 0.2154 or 21.54%';
+                    expVal.style.width = '220px';
+                    // r.expected may be a string/number/null; show it as text
+                    expVal.value = (r.expected ?? '') + '';
+                    expVal.onchange = () => {
+                        const v = (expVal.value ?? '').trim();
+                        // store as string or null; grader handles numeric/percent parsing
+                        r.expected = v === '' ? null : v;
+                        refreshJsonPreview();
+                    };
+
+                    const tol = el('input');
+                    tol.type = 'number';
+                    tol.step = 'any';
+                    tol.placeholder = 'e.g. 0.0001';
+                    tol.style.width = '140px';
+                    tol.value = (r.tolerance ?? '');
+                    tol.onchange = () => {
+                        const v = (tol.value ?? '').trim();
+                        r.tolerance = v === '' ? null : +v; // numeric or null
+                        refreshJsonPreview();
+                    };
+
+                    // append the new controls to the same row as the formula fields
+                    row2.append(labelled(expVal, 'Expected value'), labelled(tol, 'Tolerance (abs)'));
 
                     // --- "any_of" support for formulas ---
                     r.any_of = Array.isArray(r.any_of) ? r.any_of : [];
@@ -996,8 +1055,128 @@
                     refreshJsonPreview();
                 }
 
-                else if (type === 'format' || type === 'range_format') { row2.append(labelled(numFmt, 'Number format'), btnDup, btnDel); }
-                else if (type === 'range_sequence') { row2.append(labelled(start, 'Start'), labelled(step, 'Step'), btnDup, btnDel); }
+                else if (type === 'format' || type === 'range_format') {
+                    r.format = r.format || {};
+                    const getFmt = () => r.format.number_format || '';
+                    const setFmt = v => { r.format.number_format = (v || '').trim() || null; refreshJsonPreview(); };
+
+                    // ---------- Kind / Decimals / Pattern ----------
+                    const kindSel = document.createElement('select');
+                    [
+                        ['general', 'General'],
+                        ['number', 'Number'],
+                        ['currency', 'Currency'],
+                        ['accounting', 'Accounting'],
+                        ['percent', 'Percent'],
+                        ['short_date', 'Short date'],
+                        ['long_date', 'Long date'],
+                        ['time', 'Time'],
+                        ['datetime', 'Date & time'],
+                        ['scientific', 'Scientific'],
+                        ['fraction', 'Fraction'],
+                        ['text', 'Text'],
+                        ['custom', 'Custom…']
+                    ].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; kindSel.append(o); });
+
+                    const decWrap = document.createElement('div'); decWrap.className = 'stack';
+                    const decInp = document.createElement('input');
+                    decInp.type = 'number'; decInp.min = '0'; decInp.step = '1'; decInp.value = '2';
+                    decWrap.append(decInp);
+
+                    const numFmt = document.createElement('input');
+                    numFmt.placeholder = 'e.g., $#,##0.00 or 0% or m/d/yy';
+                    numFmt.style.width = '320px';
+
+                    // Hydrate from existing pattern (guess kind + decimals)
+                    const g = guessKindAndDecimals(getFmt());
+                    kindSel.value = g.kind;
+                    if (g.decimals != null) decInp.value = String(g.decimals);
+                    numFmt.value = g.raw || fmtPatternFrom(kindSel.value, decInp.value);
+
+                    const decimalsRelevant = k => ['number', 'currency', 'accounting', 'percent', 'scientific'].includes(k);
+
+                    function refreshVisibility() {
+                        decWrap.style.display = decimalsRelevant(kindSel.value) ? '' : 'none';
+                        if (kindSel.value !== 'custom') {
+                            numFmt.value = fmtPatternFrom(kindSel.value, decInp.value);
+                            setFmt(numFmt.value);
+                        }
+                    }
+
+                    kindSel.onchange = refreshVisibility;
+                    decInp.onchange = refreshVisibility;
+                    numFmt.onchange = () => {
+                        const g2 = guessKindAndDecimals(numFmt.value);
+                        setFmt(numFmt.value);
+                        if (g2.kind && g2.kind !== kindSel.value) kindSel.value = g2.kind;
+                        if (g2.decimals != null) decInp.value = String(g2.decimals);
+                        refreshVisibility();
+                    };
+
+                    refreshVisibility();
+
+                    // ---------- NEW: Bold & Font size ----------
+                    // ensure nested object for compatibility
+                    r.format.font = r.format.font || {};
+                    // read (prefer nested, fallback to flat)
+                    const initBold = (r.format.font.bold ?? r.format.font_bold) ?? null;
+                    const initSize = (r.format.font.size ?? r.format.font_size) ?? null;
+
+                    const boldCk = document.createElement('input');
+                    boldCk.type = 'checkbox';
+                    boldCk.checked = !!initBold;
+                    boldCk.onchange = () => {
+                        const v = boldCk.checked ? true : null;
+                        r.format.font.bold = v;        // nested
+                        r.format.font_bold = v;        // flat (BC)
+                        refreshJsonPreview();
+                    };
+
+                    const sizeInp = document.createElement('input');
+                    sizeInp.type = 'number';
+                    sizeInp.min = '6'; sizeInp.max = '96'; sizeInp.step = '0.5';
+                    sizeInp.placeholder = 'e.g., 12';
+                    sizeInp.style.width = '120px';
+                    sizeInp.value = (initSize ?? '').toString();
+                    sizeInp.onchange = () => {
+                        const t = sizeInp.value.trim();
+                        const v = t === '' ? null : Number(t);
+                        r.format.font.size = v;        // nested
+                        r.format.font_size = v;        // flat (BC)
+                        refreshJsonPreview();
+                    };
+
+                    // ---------- Layout ----------
+                    // Row A: Kind | Decimals | Pattern
+                    const rowA = el('div', 'row');
+                    rowA.style.gridTemplateColumns = '1fr 0.5fr 1.2fr';
+                    rowA.style.gap = '12px';
+                    rowA.append(
+                        labelled(kindSel, 'Kind'),
+                        labelled(decWrap, 'Decimals'),
+                        labelled(numFmt, 'Number format (A1 pattern)')
+                    );
+
+                    // Row B: Bold | Font size
+                    const rowB = el('div', 'row');
+                    rowB.style.gridTemplateColumns = '0.6fr 0.8fr';
+                    rowB.style.gap = '12px';
+
+                    const boldWrap = document.createElement('label');
+                    boldWrap.className = 'checkbox';
+                    boldWrap.append(boldCk, el('span', '', 'Bold'));
+
+                    rowB.append(boldWrap, labelled(sizeInp, 'Font size (pt)'));
+
+                    row2.append(rowA, rowB);
+
+                    // Duplicate / Remove buttons
+                    const btnDup = el('button', 'ghost', 'Duplicate');
+                    const btnDel = el('button', 'ghost danger', 'Remove');
+                    btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
+                    btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
+                    row2.append(btnDup, btnDel);
+                } else if (type === 'range_sequence') { row2.append(labelled(start, 'Start'), labelled(step, 'Step'), btnDup, btnDel); }
                 else if (type === 'pivot_layout') {
                     const pv = ensurePivot(r);
                     pvSheet.value = pv.sheet ?? '';
@@ -1686,9 +1865,48 @@
         $('#btnDownloadReport').onclick = () => { if (!lastReportRaw) { alert('Nothing to download yet.'); return; } download('report.json', lastReportRaw); };
 
         function keyForRule(r) {
+            const t = (r.type || 'rule');
+
+            // Charts
+            if (t === 'chart' && r.chart) {
+                const sh = (r.chart.sheet || '').trim();
+                const nm = (r.chart.name_like || '').trim();
+                if (nm) return `chart:${sh}${(sh && nm ? '/' : '')}${nm}`;
+
+                // prefer type first
+                const typ = (r.chart.type || '').trim().toLowerCase();
+                if (sh && typ) return `chart:${sh}|type=${typ}`;
+
+                // then title – include the value so it’s unique
+                const title = (r.chart.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                if (sh && title) return `chart:${sh}|title=${title}`;
+
+                // fallback to sheet
+                if (sh) return `chart:${sh}`;
+                return 'chart';
+            }
+
+            // Tables
+            if (t === 'table' && r.table) {
+                const sh = (r.table.sheet || '').trim();
+                const nm = (r.table.name_like || r.table.tableNameLike || '').trim();
+                if (nm) return `table:${sh}${(sh && nm ? '/' : '')}${nm}`;
+                if (sh) return `table:${sh}`;
+            }
+
+            // Pivots
+            if (t === 'pivot' && r.pivot) {
+                const sh = (r.pivot.sheet || '').trim();
+                const nm = (r.pivot.tableNameLike || '').trim();
+                if (nm) return `pivot:${sh}${(sh && nm ? '/' : '')}${nm}`;
+                if (sh) return `pivot:${sh}`;
+            }
+
             const loc = (r.cell && r.cell.trim()) || (r.range && r.range.trim()) || '';
-            return (r.type || 'rule') + (loc ? (':' + loc) : '');
+            return t + (loc ? (':' + loc) : '');
         }
+
+
 
         function buildSectionIndex() {
             const map = new Map();
@@ -1729,8 +1947,8 @@
                     const card = el('div', 'card');
                     const hdr = el('div', 'hstack');
                     hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
-                                                                                                       <span class="tag fail">FAIL</span>
-                                                                                                       <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                                                                                                               <span class="tag fail">FAIL</span>
+                                                                                                               <span class="muted">${escapeHtml(String(r.error))}</span>`;
                     card.appendChild(hdr);
                     body.appendChild(card);
                     continue;
@@ -1749,16 +1967,16 @@
                 const card = el('div', 'card');
                 const hdr = el('div', 'hstack');
                 hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
-                                                                                                     <span class="tag ${passBool ? 'pass' : 'fail'}">${passBool ? 'PASS' : 'FAIL'}</span>
-                                                                                                     <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                                                                                                             <span class="tag ${passBool ? 'pass' : 'fail'}">${passBool ? 'PASS' : 'FAIL'}</span>
+                                                                                                             <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
                 card.appendChild(hdr);
 
                 const details = grade.details ?? grade.Details ?? [];
                 const tbl = el('table');
                 const thead = el('thead');
                 thead.innerHTML = `<tr>
-                                                                                        <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
-                                                                                      </tr>`;
+                                                                                                <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                                                                                              </tr>`;
                 tbl.appendChild(thead);
 
                 const tb = document.createElement('tbody');
@@ -1783,10 +2001,10 @@
                     const tr = document.createElement('tr');
                     tr.className = 'section-row';
                     tr.innerHTML = `
-                                                <td colspan="5" style="font-weight:600; padding-top:10px;">
-                                                  ${escapeHtml(sec)}
-                                                  <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
-                                                </td>`;
+                                                        <td colspan="5" style="font-weight:600; padding-top:10px;">
+                                                          ${escapeHtml(sec)}
+                                                          <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+                                                        </td>`;
                     tb.appendChild(tr);
                 }
 
@@ -1800,11 +2018,11 @@
                     const tr = document.createElement('tr');
                     tr.dataset.status = okBool ? 'pass' : 'fail';
                     tr.innerHTML = `
-                                                                                        <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
-                                                                                        <td class="mono">${fmtNum(d.points)}</td>
-                                                                                        <td class="mono">${fmtNum(d.earned)}</td>
-                                                                                        <td>${okBool ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
-                                                                                        <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+                                                                                                <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+                                                                                                <td class="mono">${fmtNum(d.points)}</td>
+                                                                                                <td class="mono">${fmtNum(d.earned)}</td>
+                                                                                                <td>${okBool ? '<span class="tag pass">PASS</span>' : '<span class="tag fail">FAIL</span>'}</td>
+                                                                                                <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
                     tb.appendChild(tr);
                 }
                 tbl.appendChild(tb);
