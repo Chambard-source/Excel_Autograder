@@ -178,11 +178,9 @@ public static class Grader
         // ---------- helpers ----------
         static bool TryParseNumber(string s, out double v)
         {
-            // normalize common decorations: %, commas, currency
             var raw = s.Trim();
             var isPct = raw.EndsWith("%", StringComparison.Ordinal);
             raw = raw.Replace("%", "").Replace(",", "");
-            // strip currency symbols but keep minus/dot
             raw = new string(raw.Where(ch => char.IsDigit(ch) || ch == '-' || ch == '.').ToArray());
 
             var ok = double.TryParse(raw, System.Globalization.NumberStyles.Float,
@@ -191,96 +189,25 @@ public static class Grader
             return ok;
         }
 
-        //// Returns (ok, detailMessage). If no expected value is configured → ok=true.
-        //(bool ok, string detail) ValueMatches(IXLCell cell, Rule r)
-        //{
-        //    // Pull expected literal from r.Expected (JsonElement? → string?)
-        //    static string? GetExpectedLiteral(Rule rr)
-        //    {
-        //        if (rr.Expected is null) return null;
-
-        //        // If your Rule.Expected is declared as JsonElement?,
-        //        // access it here; otherwise adjust types as needed.
-        //        JsonElement? je = rr.Expected as JsonElement?;
-        //        if (je is null)
-        //        {
-        //            // fallback if model isn't JsonElement
-        //            return rr.Expected?.ToString();
-        //        }
-
-        //        var e = je.Value;
-        //        return e.ValueKind switch
-        //        {
-        //            JsonValueKind.String => e.GetString(),
-        //            JsonValueKind.Number => e.TryGetDouble(out var d) ? d.ToString(System.Globalization.CultureInfo.InvariantCulture) : e.ToString(),
-        //            JsonValueKind.True => "TRUE",
-        //            JsonValueKind.False => "FALSE",
-        //            JsonValueKind.Null => null,
-        //            _ => e.ToString()
-        //        };
-        //    }
-
-        //    var expectedLiteral = GetExpectedLiteral(r);
-        //    var expectedRegex = r.ExpectedRegex;
-
-        //    // nothing to check
-        //    if (string.IsNullOrWhiteSpace(expectedRegex) && string.IsNullOrWhiteSpace(expectedLiteral))
-        //        return (true, "");
-
-        //    // Get what the user sees; fall back to raw string if needed
-        //    var studentText = cell.GetFormattedString();
-        //    if (string.IsNullOrWhiteSpace(studentText))
-        //        studentText = cell.GetString();
-
-        //    // regex match has priority if provided
-        //    if (!string.IsNullOrWhiteSpace(expectedRegex))
-        //    {
-        //        bool pass = Regex.IsMatch(studentText, expectedRegex!, RegexOptions.IgnoreCase);
-        //        return pass
-        //            ? (true, "value matches regex")
-        //            : (false, $"value '{studentText}' !~ /{expectedRegex}/");
-        //    }
-
-        //    // otherwise compare against expected literal (numeric if possible)
-        //    var want = expectedLiteral ?? "";
-
-        //    static bool TryParseNumber(string s, out double v)
-        //    {
-        //        var raw = s.Trim();
-        //        var isPct = raw.EndsWith("%", StringComparison.Ordinal);
-        //        raw = raw.Replace("%", "").Replace(",", "");
-        //        raw = new string(raw.Where(ch => char.IsDigit(ch) || ch == '-' || ch == '.').ToArray());
-        //        var ok = double.TryParse(raw, System.Globalization.NumberStyles.Float,
-        //                                 System.Globalization.CultureInfo.InvariantCulture, out v);
-        //        if (ok && isPct) v /= 100.0;
-        //        return ok;
-        //    }
-
-        //    if (TryParseNumber(studentText, out var gotNum) && TryParseNumber(want, out var expNum))
-        //    {
-        //        var tol = r.Tolerance ?? 0.0;
-        //        bool pass = Math.Abs(gotNum - expNum) <= Math.Abs(tol);
-        //        return pass
-        //            ? (true, $"value {gotNum}≈{expNum} (±{tol})")
-        //            : (false, $"value {gotNum}≠{expNum} (tol {tol})");
-        //    }
-        //    else
-        //    {
-        //        bool pass = string.Equals(studentText.Trim(), want.Trim(), StringComparison.OrdinalIgnoreCase);
-        //        return pass
-        //            ? (true, "value text matches")
-        //            : (false, $"value text got '{studentText}' expected '{want}'");
-        //    }
-        //}
-
-
-        // --- 0) Must actually be a formula ---
+        // --- 0) Must actually be a formula (robust guard) ---
         var sCell = wsS.Cell(cellAddr);
-        if (!sCell.HasFormula)
-            return new CheckResult($"formula:{cellAddr}", pts, 0, false, "cell has no formula");
+        var a1 = sCell.FormulaA1;
+        var r1c1 = sCell.FormulaR1C1;
 
-        // student's formula (raw + normalized)
-        string sRaw = sCell.FormulaA1 ?? "";
+        // ClosedXML may omit '=' in FormulaA1 text; consider it a formula if either string is present or HasFormula is true
+        var hasRealFormula = sCell.HasFormula || (!string.IsNullOrWhiteSpace(a1) || !string.IsNullOrWhiteSpace(r1c1));
+        if (!hasRealFormula)
+        {
+            // Optional: say if the value happens to match, but still no credit
+            var (valOk0, valDetail0) = ValueMatches(sCell, rule);
+            var msg0 = valOk0
+                ? $"cell has no formula (value matches{(string.IsNullOrWhiteSpace(valDetail0) ? "" : $": {valDetail0}")}; no credit)"
+                : "cell has no formula";
+            return new CheckResult($"formula:{cellAddr}", pts, 0, false, msg0);
+        }
+
+        // Student's formula
+        string sRaw = a1 ?? r1c1 ?? "";
         string sNorm = NormalizeFormula(sRaw);
 
         // Build options to try (any_of overrides rule-level)
@@ -290,6 +217,7 @@ public static class Grader
         ).ToList();
 
         var reasons = new List<string>();
+        string? expectedHint = null;  // <--- remember best "expected" to show if we fall back to value-only partial
 
         foreach (var (litExp, rxExp, fromKey, requireAbs, origin) in opts)
         {
@@ -297,23 +225,24 @@ public static class Grader
             var litNorm = NormalizeFormula(litExp ?? "");
             if (!string.IsNullOrEmpty(litNorm))
             {
+                if (string.IsNullOrWhiteSpace(expectedHint)) expectedHint = litExp;  // remember what we expected
                 bool contentOk = (sNorm == litNorm);
 
                 if (!contentOk)
                 {
-                    // Tell them the formula mismatched; DO NOT mention absolutes yet
                     reasons.Add($"formula mismatch | expected='{litExp}' ({origin}); got='{sRaw}'");
                     continue;
                 }
 
-                // Content matches → now and only now check required absolutes
+                // Content matches → enforce required absolutes if requested
                 if (requireAbs == true)
                 {
                     var missing = MissingAbsolutesFromExpected(litExp!, sRaw);
                     if (missing.Count > 0)
                     {
+                        var partial = Math.Round(pts * 0.5, 3); // HALF CREDIT
                         return new CheckResult(
-                            $"formula:{cellAddr}", pts, 0, false,
+                            $"formula:{cellAddr}", pts, partial, false,
                             $"formula correct; missing required absolutes: {string.Join(", ", missing)} | got='{sRaw}'"
                         );
                     }
@@ -339,6 +268,7 @@ public static class Grader
             // 2) Regex expected
             if (!string.IsNullOrWhiteSpace(rxExp))
             {
+                if (string.IsNullOrWhiteSpace(expectedHint)) expectedHint = $"/{rxExp}/";
                 bool contentOk = Regex.IsMatch(sNorm, $"^{rxExp}$", RegexOptions.IgnoreCase);
 
                 if (!contentOk)
@@ -349,18 +279,17 @@ public static class Grader
 
                 if (requireAbs == true)
                 {
-                    // No concrete expected → fall back to "must include $ anchors wherever applicable"
                     var absInfo = MissingAbsoluteRefs(sRaw);
                     if (!absInfo.ok)
                     {
+                        var partial = Math.Round(pts * 0.5, 3); // HALF CREDIT
                         return new CheckResult(
-                            $"formula:{cellAddr}", pts, 0, false,
+                            $"formula:{cellAddr}", pts, partial, false,
                             $"formula correct; missing required absolutes: {string.Join(", ", absInfo.missing)} | got='{sRaw}'"
                         );
                     }
                 }
 
-                // Optional value check
                 var (ok, detail) = ValueMatches(sCell, rule);
                 if (!ok)
                 {
@@ -390,6 +319,9 @@ public static class Grader
                 var kRaw = kc.HasFormula ? (kc.FormulaA1 ?? kc.FormulaR1C1 ?? "") : "";
                 var kNorm = NormalizeFormula(kRaw);
 
+                if (string.IsNullOrWhiteSpace(expectedHint) && !string.IsNullOrWhiteSpace(kRaw))
+                    expectedHint = kRaw;
+
                 if (string.IsNullOrEmpty(kNorm))
                 {
                     reasons.Add("key cell has no formula");
@@ -409,14 +341,14 @@ public static class Grader
                     var missing = MissingAbsolutesFromExpected(kRaw, sRaw);
                     if (missing.Count > 0)
                     {
+                        var partial = Math.Round(pts * 0.5, 3); // HALF CREDIT
                         return new CheckResult(
-                            $"formula:{cellAddr}", pts, 0, false,
+                            $"formula:{cellAddr}", pts, partial, false,
                             $"formula correct; missing required absolutes: {string.Join(", ", missing)} | got='{sRaw}'"
                         );
                     }
                 }
 
-                // Optional value check
                 var (ok, detail) = ValueMatches(sCell, rule);
                 if (!ok)
                 {
@@ -437,11 +369,24 @@ public static class Grader
             reasons.Add($"no expected provided ({origin})");
         }
 
+        // -------- Value-only partial when formula content didn't match any option --------
+        {
+            var (valOk, valDetail) = ValueMatches(sCell, rule);
+            if (valOk)
+            {
+                var partial = Math.Round(pts * 0.5, 3); // adjust fraction if desired
+                var expectedBit = string.IsNullOrWhiteSpace(expectedHint) ? "" : $" | expected='{expectedHint}'";
+                return new CheckResult(
+                    $"formula:{cellAddr}", pts, partial, false,
+                    $"value correct but formula incorrect{(string.IsNullOrWhiteSpace(valDetail) ? "" : $": {valDetail}")} | got formula '{sRaw}'{expectedBit}"
+                );
+            }
+        }
+
         // Content did not match any option; return accumulated reasons
         var failMsg = string.Join(" | ", reasons);
         return new CheckResult($"formula:{cellAddr}", pts, 0, false, failMsg);
     }
-
 
 
 
