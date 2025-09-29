@@ -333,7 +333,7 @@
         /* On wider screens, show a right column for the rail */
         @media (min-width: 1100px) {
             .builder-grid {
-                grid-template-columns: 1fr 280px; /* main | rail width */
+                grid-template-columns: 1fr 320px; /* main | rail width */
                 align-items: start;
             }
 
@@ -520,6 +520,14 @@
             padding: 6px 8px;
         }
 
+        /* Right rail: stick + own scrollbar */
+        @media (min-width: 1100px) {
+            .rules-rail > .card {
+                max-height: calc(100vh - 24px);
+                overflow: auto;
+            }
+        }
+
         /* collapsed state */
         .rail-sheet.collapsed .rail-body {
             display: none;
@@ -674,6 +682,38 @@
         #resultsCard.only-misses [data-status="pass"] {
             display: none !important;
         }
+
+        /* --- Section Order UI (added) --- */
+        #sectionOrder .order-row {
+            display: flex;
+            flex-wrap: wrap; /* allow wrapping so buttons don't clip */
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--muted);
+            background: #0f1520;
+            border-radius: 10px;
+            padding: 8px 10px;
+        }
+
+            /* Let the section name take remaining space but also shrink on small rails */
+            #sectionOrder .order-row .name {
+                flex: 1 1 140px; /* grow, shrink, min width */
+                min-width: 0; /* enables ellipsis if you add it later */
+                font-weight: 600;
+            }
+
+            /* Stack/multi-line button group when tight */
+            #sectionOrder .order-row .btns {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+                /* Make the little arrow & remove buttons tighter */
+                #sectionOrder .order-row .btns .ghost {
+                    padding: 4px 8px;
+                    line-height: 1.1;
+                }
     </style>
 </head>
 <body>
@@ -765,31 +805,46 @@
 
                 <!-- RIGHT: sticky rail with bulk actions (single instance, same IDs) -->
                 <aside class="rules-rail">
-                      <div class="card">
+                    <div class="card">
                         <div class="tiny muted" style="margin-bottom:6px;">Bulk actions</div>
                         <div id="rulesToolbar" class="stack">
-                          <label class="checkbox"><input type="checkbox" id="groupBySection" checked> Group by Section</label>
-                          <label class="tiny muted">Sort by</label>
-                          <select id="sortBy"> … </select>
-                          <label class="tiny muted">Move to section</label>
-                          <select id="moveToSection">
-                            <option value="">Move selected to section…</option>
-                            <option value="__new__">+ New section…</option>
-                          </select>
-                          <button id="btnMoveToSection" class="ghost">Move</button>
-                          <button id="btnClearSelection" class="ghost">Clear selection</button>
+                            <label class="checkbox"><input type="checkbox" id="groupBySection" checked> Group by Section</label>
+                            <label class="tiny muted">Sort by</label>
+                            <select id="sortBy"> … </select>
+                            <label class="tiny muted">Move to section</label>
+                            <select id="moveToSection">
+                                <option value="">Move selected to section…</option>
+                                <option value="__new__">+ New section…</option>
+                            </select>
+                            <button id="btnMoveToSection" class="ghost">Move</button>
+                            <button id="btnClearSelection" class="ghost">Clear selection</button>
                         </div>
 
                         <div class="hstack" style="gap:8px; margin:8px 0;">
-                          <button id="btnExpandSections" class="ghost">Expand sections</button>
-                          <button id="btnCollapseSections" class="ghost">Collapse sections</button>
+                            <button id="btnExpandSections" class="ghost">Expand sections</button>
+                            <button id="btnCollapseSections" class="ghost">Collapse sections</button>
                         </div>
 
-                        <hr class="hr"/>
+                        <hr class="hr" />
+
+                        <hr class="hr" />
+                        <div class="tiny muted" style="margin:8px 0 4px;">Section order (grading sequence)</div>
+
+                        <div id="sectionOrder" class="stack" style="margin-bottom:8px;"></div>
+
+                        <div class="hstack" style="gap:8px;">
+                            <select id="sectionOrderPicker" style="flex:1 1 auto;"></select>
+                            <button id="btnOrderAdd" class="ghost">Add</button>
+                        </div>
+
+                        <button id="btnOrderClear" class="ghost" style="margin-top:6px;">Clear order</button>
+
+                        <hr class="hr" />
+                        <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
                         <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
                         <div id="railRules" class="stack"></div>
-                      </div>
-                    </aside>
+                    </div>
+                </aside>
             </div>
 
             <!-- RESULTS -->
@@ -985,10 +1040,10 @@
                 for (const [sec, arr] of groups) {
                     const group = el('div', 'section-group');
                     const head = el('div', 'section-header', `
-                                                            <span class="chev">▾</span>
-                                                            <strong>${esc(sec)}</strong>
-                                                            <span class="count">${arr.length} ${arr.length === 1 ? 'rule' : 'rules'}</span>
-                                                            `);
+                                                                <span class="chev">▾</span>
+                                                                <strong>${esc(sec)}</strong>
+                                                                <span class="count">${arr.length} ${arr.length === 1 ? 'rule' : 'rules'}</span>
+                                                                `);
                     const isCollapsed = folded.has(sec);
                     if (isCollapsed) { group.classList.add('collapsed'); head.querySelector('.chev').style.transform = 'rotate(-90deg)'; }
 
@@ -1003,11 +1058,11 @@
                     for (const [r] of arr) {
                         const id = r.__id; // set by ensureRuleIds()
                         const row = el('div', 'rule-row', `
-                                                            <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
-                                                            <div class="mono">${esc(r.cell || '(range)')}</div>
-                                                            <div class="mono">${esc(r.type || '')}</div>
-                                                            <div>${esc(r.note || '')}</div>
-                                                        `);
+                                                                <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
+                                                                <div class="mono">${esc(r.cell || '(range)')}</div>
+                                                                <div class="mono">${esc(r.type || '')}</div>
+                                                                <div>${esc(r.note || '')}</div>
+                                                            `);
                         row.querySelector('.rule-select').onchange = (ev) => {
                             if (ev.target.checked) UI.selected.add(id); else UI.selected.delete(id);
                         };
@@ -1023,11 +1078,11 @@
             for (const [r] of rows) {
                 const id = r.__id;
                 const row = el('div', 'rule-row', `
-                                                  <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
-                                                  <div class="mono">${esc(r.cell || '(range)')}</div>
-                                                  <div class="mono">${esc(r.type || '')}</div>
-                                                  <div>${esc(r.note || '')}</div>
-                                                `);
+                                                      <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
+                                                      <div class="mono">${esc(r.cell || '(range)')}</div>
+                                                      <div class="mono">${esc(r.type || '')}</div>
+                                                      <div>${esc(r.note || '')}</div>
+                                                    `);
                 row.querySelector('.rule-select').onchange = (ev) => {
                     if (ev.target.checked) UI.selected.add(id); else UI.selected.delete(id);
                 };
@@ -1048,10 +1103,10 @@
             for (const [name, spec] of Object.entries(rubric.sheets || {})) {
                 const box = el('div', 'rail-sheet');
                 const head = el('div', 'rail-head', `
-                                                      <span class="chev">${openBefore.has(name) ? '▾' : '▸'}</span>
-                                                      <strong>${esc(name)}</strong>
-                                                      <span class="count">${(spec.checks || []).length} ${((spec.checks || []).length === 1 ? 'rule' : 'rules')}</span>
-                                                    `);
+                                                          <span class="chev">${openBefore.has(name) ? '▾' : '▸'}</span>
+                                                          <strong>${esc(name)}</strong>
+                                                          <span class="count">${(spec.checks || []).length} ${((spec.checks || []).length === 1 ? 'rule' : 'rules')}</span>
+                                                        `);
                 const body = el('div', 'rail-body');
 
                 if (!openBefore.has(name)) box.classList.add('collapsed');
@@ -2502,8 +2557,8 @@
                     const card = el('div', 'card');
                     const hdr = el('div', 'hstack');
                     hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
-                                  <span class="tag fail">FAIL</span>
-                                  <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                                      <span class="tag fail">FAIL</span>
+                                      <span class="muted">${escapeHtml(String(r.error))}</span>`;
                     card.appendChild(hdr);
                     body.appendChild(card);
                     continue;
@@ -2525,15 +2580,15 @@
                 const card = el('div', 'card');
                 const hdr = el('div', 'hstack');
                 hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
-                                <span class="tag ${headerClass}">${headerStatus}</span>
-                                <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                                    <span class="tag ${headerClass}">${headerStatus}</span>
+                                    <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
                 card.appendChild(hdr);
 
                 const tbl = el('table');
                 const thead = el('thead');
                 thead.innerHTML = `<tr>
-                                  <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
-                                  </tr>`;
+                                      <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                                      </tr>`;
                 tbl.appendChild(thead);
 
                 const tb = document.createElement('tbody');
@@ -2557,10 +2612,10 @@
                     const tr = document.createElement('tr');
                     tr.className = 'section-row';
                     tr.innerHTML = `
-                                 <td colspan="5" style="font-weight:600; padding-top:10px;">
-                                 ${escapeHtml(sec)}
-                                 <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
-                                 </td>`;
+                                     <td colspan="5" style="font-weight:600; padding-top:10px;">
+                                     ${escapeHtml(sec)}
+                                     <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+                                     </td>`;
                     tb.appendChild(tr);
                 }
 
@@ -2576,16 +2631,16 @@
                     tr.dataset.status = okBool ? 'pass' : (partialBool ? 'partial' : 'fail');
 
                     tr.innerHTML = `
-                        <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
-                        <td class="mono">${fmtNum(d.points)}</td>
-                        <td class="mono">${fmtNum(d.earned)}</td>
-                        <td>${okBool
+                            <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+                            <td class="mono">${fmtNum(d.points)}</td>
+                            <td class="mono">${fmtNum(d.earned)}</td>
+                            <td>${okBool
                             ? '<span class="tag pass">PASS</span>'
                             : (partialBool
                                 ? '<span class="tag partial">PARTIAL</span>'
                                 : '<span class="tag fail">FAIL</span>')
                         }</td>
-                        <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+                            <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
                     tb.appendChild(tr);
                 }
 
@@ -2617,5 +2672,102 @@
         // boot
         render();
     </script>
+
+    <script>
+        (function () {
+            window.rubric = window.rubric || { meta: {}, sheets: {} };
+            function getSectionOrder() {
+                const m = rubric.meta || {};
+                return Array.isArray(m.sectionOrder) ? m.sectionOrder.slice() : [];
+            }
+            function setSectionOrder(arr) {
+                rubric.meta = rubric.meta || {};
+                rubric.meta.sectionOrder = arr.slice();
+                try { refreshOrderUI(); } catch (e) { }
+                try { if (typeof render === 'function') render(); } catch (e) { }
+                try { if (typeof refreshJsonPreview === 'function') refreshJsonPreview(); } catch (e) { }
+            }
+            function allSectionNames() {
+                const set = new Set();
+                const sheets = rubric.sheets || {};
+                Object.values(sheets).forEach(s => (s.checks || []).forEach(r => {
+                    const nm = (r.section || '').trim();
+                    if (nm) set.add(nm);
+                }));
+                return Array.from(set).sort((a, b) => a.localeCompare(b));
+            }
+            function refreshOrderUI() {
+                const host = document.getElementById('sectionOrder');
+                const pick = document.getElementById('sectionOrderPicker');
+                if (!host || !pick) return;
+                const order = getSectionOrder();
+                const all = allSectionNames();
+                const remaining = all.filter(n => !order.includes(n));
+
+                host.innerHTML = '';
+                order.forEach((name, i) => {
+                    const row = document.createElement('div'); row.className = 'order-row';
+                    const up = document.createElement('button'); up.className = 'ghost'; up.textContent = '↑';
+                    const down = document.createElement('button'); down.className = 'ghost'; down.textContent = '↓';
+                    const del = document.createElement('button'); del.className = 'ghost danger'; del.textContent = 'Remove';
+                    const nm = document.createElement('span'); nm.className = 'name'; nm.textContent = name;
+                    const idx = document.createElement('span'); idx.className = 'tiny muted'; idx.textContent = '#' + (i + 1);
+                    const spacer = document.createElement('div'); spacer.className = 'spacer';
+
+                    up.onclick = () => { if (i === 0) return; const arr = getSectionOrder();[arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; setSectionOrder(arr); };
+                    down.onclick = () => { const arr = getSectionOrder(); if (i >= arr.length - 1) return;[arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; setSectionOrder(arr); };
+                    del.onclick = () => { const arr = getSectionOrder().filter(s => s !== name); setSectionOrder(arr); };
+
+                    row.append(up, down, nm, spacer, idx, del);
+                    host.append(row);
+                });
+
+                pick.innerHTML = '';
+                if (remaining.length === 0) {
+                    pick.append(new Option('(All sections ordered)', '', true, true));
+                } else {
+                    remaining.forEach(n => pick.append(new Option(n, n)));
+                }
+                const btnAdd = document.getElementById('btnOrderAdd');
+                const btnClear = document.getElementById('btnOrderClear');
+                if (btnAdd) btnAdd.onclick = () => {
+                    const v = pick.value;
+                    if (!v) return;
+                    const arr = getSectionOrder(); arr.push(v); setSectionOrder(arr);
+                };
+                if (btnClear) btnClear.onclick = () => setSectionOrder([]);
+            }
+
+            const oldSortKey = (typeof sortKey === 'function') ? sortKey : null;
+            window.sortKey = function (rule, index) {
+                try {
+                    const sec = (rule.section || '').trim();
+                    const order = (rubric.meta && Array.isArray(rubric.meta.sectionOrder)) ? rubric.meta.sectionOrder : [];
+                    const idx = order.indexOf(sec);
+                    const secRank = (idx >= 0) ? String(idx).padStart(3, '0') : '999';
+                    const t = (rule.type || '').toString();
+                    const c = (rule.cell || '').toString();
+                    const n = (rule.note || '').toString();
+                    return secRank + '|' + t + '|' + c + '|' + n + '|' + String(index).padStart(6, '0');
+                } catch (e) {
+                    return oldSortKey ? oldSortKey(rule, index) : (String(index).padStart(6, '0'));
+                }
+            };
+
+            if (typeof render === 'function') {
+                const _orig = render;
+                window.render = function () {
+                    const result = _orig.apply(this, arguments);
+                    try { refreshOrderUI(); } catch (e) { }
+                    return result;
+                };
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                try { refreshOrderUI(); } catch (e) { }
+            });
+        })();
+    </script>
+
 </body>
 </html>

@@ -7,9 +7,19 @@ public class Rubric
     [JsonPropertyName("sheets")] public Dictionary<string, SheetSpec> Sheets { get; set; } = new();
     [JsonPropertyName("scoring")] public Scoring? Scoring { get; set; }
     [JsonPropertyName("report")] public Report? Report { get; set; }
+    [JsonPropertyName("meta")] public RubricMeta? Meta { get; set; }
 }
 
-public class SheetSpec { [JsonPropertyName("checks")] public List<Rule> Checks { get; set; } = new(); }
+public class SheetSpec
+{
+    [JsonPropertyName("checks")]
+    public List<Rule> Checks { get; set; } = new();
+
+    // New: optional per-sheet section order (e.g., ["SUMIF / category totals","Relative frequency","Charts"])
+    [JsonPropertyName("section_order")]
+    public List<string>? SectionOrder { get; set; }
+}
+
 public class Scoring { [JsonPropertyName("round_to")] public double? RoundTo { get; set; } }
 public class Report { [JsonPropertyName("include_pass_fail_column")] public bool IncludePassFailColumn { get; set; } = true; [JsonPropertyName("include_comments")] public bool IncludeComments { get; set; } = true; }
 
@@ -176,6 +186,12 @@ public class TableSpec
     // containment (subset) checks
     [JsonPropertyName("contains_rows")] public List<Dictionary<string, string>>? ContainsRows { get; set; }
 
+}
+
+public class RubricMeta
+{
+    // UI writes this as meta.sectionOrder
+    [JsonPropertyName("sectionOrder")] public List<string>? SectionOrder { get; set; }
 }
 
 public record CheckResult(string Name, double Points, double Earned, bool Passed, string Comment);

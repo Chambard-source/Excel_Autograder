@@ -37,7 +37,6 @@ public static class Grader
             var wsS = FindWorksheet(wbStudent, sheetName);
             if (wsS is null)
             {
-                // mark all checks for that sheet as failed
                 foreach (var rule in spec.Checks)
                 {
                     var id = rule.Cell ?? rule.Range ?? sheetName;
@@ -49,7 +48,32 @@ public static class Grader
 
             var wsK = FindWorksheet(wbKey, sheetName);
 
-            foreach (var rule in spec.Checks)
+            // ---- compute order
+            IEnumerable<Rule> orderedChecks = spec.Checks;
+
+            // normalize names used as keys
+            string Norm(string? s) => string.IsNullOrWhiteSpace(s) ? "(No section)" : s.Trim();
+
+            // Prefer per-sheet; else fall back to global meta.sectionOrder
+            var order = spec.SectionOrder?.Count > 0
+                ? spec.SectionOrder
+                : rubric.Meta?.SectionOrder;
+
+            if (order is { Count: > 0 })
+            {
+                var index = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < order.Count; i++) index[Norm(order[i])] = i;
+
+                int Rank(Rule r) => index.TryGetValue(Norm(r.Section), out var pos) ? pos : int.MaxValue;
+
+                orderedChecks = spec.Checks
+                    .Select((r, i) => (r, i))
+                    .OrderBy(t => Rank(t.r))       // section order
+                    .ThenBy(t => t.i)              // stable within a section
+                    .Select(t => t.r);
+            }
+
+            foreach (var rule in orderedChecks)
                 results.Add(DispatchRule(rule, wbStudent, wbKey, wsS, wsK));
         }
 
