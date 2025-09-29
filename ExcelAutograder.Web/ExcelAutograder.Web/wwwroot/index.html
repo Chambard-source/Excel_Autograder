@@ -5,6 +5,7 @@
     <title>Excel Autograder</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
+
         :root {
             --bg: #0b0f14;
             --panel: #121822;
@@ -12,9 +13,7 @@
             --ink: #e7ecf3;
             --ink2: #b8c0cc;
             --accent: #4aa3ff;
-            /* max width the content should ever reach on large screens */
-            --content-max: 1160px; /* tweak to taste */
-            /* side padding that scales a bit with the viewport */
+            --content-max: 1160px;
             --gutter: clamp(12px, 2vw, 24px);
         }
 
@@ -225,6 +224,26 @@
                 display: none;
             }
 
+        .section-header {
+            font-weight: 600;
+            margin-top: 10px;
+            padding: 6px 8px;
+            border-top: 1px solid #2c2f36;
+            background: rgba(255,255,255,.03);
+        }
+
+        .rule-row {
+            display: grid;
+            grid-template-columns: 22px 120px 80px 1fr;
+            gap: 8px;
+            align-items: center;
+            padding: 6px 0;
+        }
+
+            .rule-row .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            }
+
         .hidden {
             display: none !important;
         }
@@ -304,6 +323,258 @@
             .mini-table tbody tr:nth-child(even) td {
                 background: #0d1015;
             }
+
+        /* Builder layout with a sticky right rail */
+        .builder-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        /* On wider screens, show a right column for the rail */
+        @media (min-width: 1100px) {
+            .builder-grid {
+                grid-template-columns: 1fr 280px; /* main | rail width */
+                align-items: start;
+            }
+
+            .rules-rail {
+                position: sticky;
+                top: 12px; /* how far from top it sticks */
+            }
+        }
+
+        /* Make the rail controls stack nicely */
+        #rulesToolbar.stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #rulesToolbar select,
+        #rulesToolbar button {
+            width: 100%;
+        }
+
+        /* --- Section groups --- */
+        .section-group {
+            border: 1px solid #2b3748;
+            border-radius: 10px;
+            margin: 10px 0 14px;
+            background: #0f1520;
+            overflow: hidden;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #121822;
+            border-bottom: 1px solid #223046;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .section-header .chev {
+                font-size: 12px;
+                opacity: .75;
+                width: 1.25em;
+                text-align: center;
+            }
+
+            .section-header .title {
+                font-weight: 600;
+            }
+
+            .section-header .badge {
+                margin-left: auto;
+                font-size: 12px;
+                padding: 2px 8px;
+                border-radius: 999px;
+                background: #1f2937;
+                border: 1px solid #2a3647;
+                color: #b8c0cc;
+            }
+
+        .section-body {
+            padding: 8px 10px;
+        }
+
+        .section-group.collapsed .section-body {
+            display: none;
+        }
+
+        .section-group.collapsed .chev {
+            transform: rotate(-90deg);
+        }
+
+        /* Compact mode for dense lists */
+        .dense .section-body .rule-row {
+            padding: 4px 0;
+        }
+
+        .dense .rule-row {
+            gap: 6px
+        }
+
+            .dense .rule-row input[type="checkbox"] {
+                margin-right: 4px
+            }
+
+        /* Sticky/float Sections dock */
+        #sectionsDock {
+            position: fixed;
+            right: 18px;
+            top: 140px;
+            width: 240px;
+            max-height: 60vh;
+            overflow: auto;
+            background: var(--panel);
+            border: 1px solid var(--muted);
+            border-radius: 10px;
+            box-shadow: 0 6px 18px rgba(0,0,0,.35);
+            z-index: 40;
+            padding: 10px;
+        }
+
+            #sectionsDock.hidden {
+                display: none;
+            }
+
+            #sectionsDock h4 {
+                margin: 4px 0 8px;
+                font-size: 13px;
+                color: var(--ink2)
+            }
+
+            #sectionsDock .item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 6px 8px;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+
+                #sectionsDock .item:hover {
+                    background: #0e131b
+                }
+
+            #sectionsDock .count {
+                font-size: 12px;
+                opacity: .8
+            }
+
+        #toggleSectionsDock {
+            position: fixed;
+            right: 18px;
+            top: 100px;
+            z-index: 41;
+            background: #1a2230;
+            border: 1px solid #263041;
+            border-radius: 999px;
+            padding: 6px 10px;
+        }
+
+        /* Right-rail collapsible sheets */
+        .rail-sheet {
+            border: 1px solid var(--muted);
+            border-radius: 10px;
+            background: #0f1520;
+            overflow: hidden;
+        }
+
+            .rail-sheet + .rail-sheet {
+                margin-top: 10px;
+            }
+
+        .rail-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #121822;
+            border-bottom: 1px solid #223046;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .rail-head .chev {
+                width: 16px;
+                text-align: center;
+                font-weight: 700;
+                opacity: .7;
+            }
+
+            .rail-head .count {
+                font-size: 12px;
+                padding: 2px 8px;
+                border-radius: 999px;
+                border: 1px solid #2a3647;
+                background: #1f2937;
+            }
+
+        .rail-body {
+            max-height: 300px;
+            overflow: auto;
+            padding: 6px 8px;
+        }
+
+        /* collapsed state */
+        .rail-sheet.collapsed .rail-body {
+            display: none;
+        }
+
+        .rail-sheet.collapsed .chev {
+            transform: rotate(-90deg);
+        }
+
+        /* compact rows inside the rail (uses your existing list renderer) */
+        .rail-body .section-header {
+            margin: 8px 0 4px;
+            border-top: none;
+            background: transparent;
+            padding: 2px 4px;
+            color: var(--ink2);
+        }
+
+        /* Collapsible sections in compact rule list */
+        .section-group {
+            margin: 10px 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            background: rgba(255,255,255,.03);
+            border: 1px solid #2a3647;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .section-header .chev {
+                font-weight: 700;
+                width: 12px;
+                text-align: center;
+                opacity: .8;
+            }
+
+            .section-header .count {
+                margin-left: auto;
+                font-size: 12px;
+                color: var(--ink2);
+            }
+
+        .section-group.collapsed .rule-row {
+            display: none;
+        }
+
+        .section-group.collapsed .section-header .chev {
+            transform: rotate(-90deg);
+        }
 
         .td-num {
             text-align: right;
@@ -449,58 +720,83 @@
         <div class="card builder-card">
             <h2 style="margin:4px 0 12px">Rubric Builder</h2>
 
-            <!-- Collapsible header (sits just above the builder controls) -->
+            <!-- Collapsible header -->
             <div class="hstack" style="justify-content:space-between;align-items:center;margin:6px 0 10px;">
                 <div class="tiny muted">Builder controls</div>
                 <button id="btnToggleBuilder" class="ghost">Hide builder</button>
             </div>
 
-            <!-- Everything in the builder lives inside #builderBody so we can collapse it -->
-            <div id="builderBody">
-                <div class="grid-2">
-                    <div class="stack">
-                        <label>Generate from Key (uses the Key file chosen above)</label>
-                        <div class="hstack">
-                            <input id="sheetHint" type="text" placeholder="e.g., 'Scores' or 'Summary' (optional)" />
-                            <label class="checkbox"><input type="checkbox" id="allSheets" /> All sheets</label>
-                            <input id="totalPoints" type="number" step="0.25" min="0" placeholder="Total Points (e.g., 5 or 10)" style="width:180px" />
-                            <button id="btnGenerate" class="primary">Generate</button>
-                            <button id="btnClear" class="danger">Clear Builder</button>
+            <!-- Builder content + sticky right rail -->
+            <div class="builder-grid">
+                <!-- LEFT: builder content (unchanged) -->
+                <div id="builderBody">
+                    <div class="grid-2">
+                        <div class="stack">
+                            <label>Generate from Key (uses the Key file chosen above)</label>
+                            <div class="hstack">
+                                <input id="sheetHint" type="text" placeholder="e.g., 'Scores' or 'Summary' (optional)" />
+                                <label class="checkbox"><input type="checkbox" id="allSheets" /> All sheets</label>
+                                <input id="totalPoints" type="number" step="0.25" min="0" placeholder="Total Points (e.g., 5 or 10)" style="width:180px" />
+                                <button id="btnGenerate" class="primary">Generate</button>
+                                <button id="btnClear" class="danger">Clear Builder</button>
+                            </div>
+                            <div class="tiny muted">Generate → replaces the builder entirely with the auto-rubric from your key. No merge, no leftovers.</div>
                         </div>
-                        <div class="tiny muted">Generate → replaces the builder entirely with the auto-rubric from your key. No merge, no leftovers.</div>
+
+                        <div class="stack">
+                            <label>Report options</label>
+                            <div class="hstack">
+                                <label class="checkbox"><input type="checkbox" id="optPassFail" checked /> Include Pass/Fail</label>
+                                <label class="checkbox"><input type="checkbox" id="optComments" checked /> Include Comments</label>
+                                <button id="btnGenerateJson" class="right">Generate JSON (from builder)</button>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="stack">
-                        <label>Report options</label>
-                        <div class="hstack">
-                            <label class="checkbox"><input type="checkbox" id="optPassFail" checked /> Include Pass/Fail</label>
-                            <label class="checkbox"><input type="checkbox" id="optComments" checked /> Include Comments</label>
-                            <button id="btnGenerateJson" class="right">Generate JSON (from builder)</button>
-                        </div>
+                    <div class="hr"></div>
+
+                    <div class="hstack">
+                        <button id="btnAddSheet" class="ghost">+ Add Sheet</button>
+                        <span class="tiny pill">Tip: use “Duplicate” to clone a whole sheet or a single rule.</span>
                     </div>
+
+                    <div id="sheets" class="stack"></div>
                 </div>
 
-                <!-- keep the rest of your builder content (Add Sheet, sheets list, etc.) below, still inside #builderBody -->
+                <!-- RIGHT: sticky rail with bulk actions (single instance, same IDs) -->
+                <aside class="rules-rail">
+                      <div class="card">
+                        <div class="tiny muted" style="margin-bottom:6px;">Bulk actions</div>
+                        <div id="rulesToolbar" class="stack">
+                          <label class="checkbox"><input type="checkbox" id="groupBySection" checked> Group by Section</label>
+                          <label class="tiny muted">Sort by</label>
+                          <select id="sortBy"> … </select>
+                          <label class="tiny muted">Move to section</label>
+                          <select id="moveToSection">
+                            <option value="">Move selected to section…</option>
+                            <option value="__new__">+ New section…</option>
+                          </select>
+                          <button id="btnMoveToSection" class="ghost">Move</button>
+                          <button id="btnClearSelection" class="ghost">Clear selection</button>
+                        </div>
 
+                        <div class="hstack" style="gap:8px; margin:8px 0;">
+                          <button id="btnExpandSections" class="ghost">Expand sections</button>
+                          <button id="btnCollapseSections" class="ghost">Collapse sections</button>
+                        </div>
 
-                <div class="hr"></div>
-
-                <div class="hstack">
-                    <button id="btnAddSheet" class="ghost">+ Add Sheet</button>
-                    <span class="tiny pill">Tip: use “Duplicate” to clone a whole sheet or a single rule.</span>
-                </div>
-
-                <div id="sheets" class="stack"></div>
+                        <hr class="hr"/>
+                        <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
+                        <div id="railRules" class="stack"></div>
+                      </div>
+                    </aside>
             </div>
-
-            <div class="spacer"></div>
 
             <!-- RESULTS -->
             <div class="card stack" id="resultsCard" style="display:none">
                 <div class="hstack" style="align-items:center; justify-content:space-between;">
                     <h2 style="margin:0">Results</h2>
                     <div class="hstack" style="gap:12px; align-items:center;">
-                        <!-- NEW -->
                         <label class="tiny hstack" style="gap:6px; cursor:pointer;">
                             <input id="toggleOnlyMisses" type="checkbox">
                             <span>Show only misses</span>
@@ -514,17 +810,62 @@
     </div>
 
     <script>
+
         // ---------- helpers
         const $ = s => document.querySelector(s);
         const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
         const download = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
 
+        // track folded sections per sheet
+        window.UI = window.UI || {};
+        UI.selected = UI.selected instanceof Set ? UI.selected : new Set();
+        UI.sortBy = UI.sortBy || 'section-cell';
+        UI.groupBySection = UI.groupBySection !== false;   // default ON
+        UI.fold = UI.fold || {};      // { [sheetName]: Set<sectionName> }
+        UI.activeSheet = UI.activeSheet || null; // last hovered sheet
+        UI.railOpen = UI.railOpen || new Set(); // right-rail open sheets
+
+        function expandAllSections(sheetName, expand) {
+            if (!sheetName) return;
+            const folded = UI.fold[sheetName] instanceof Set
+                ? UI.fold[sheetName]
+                : (UI.fold[sheetName] = new Set());
+
+            folded.clear();
+            if (!expand) {
+                // mark every section as folded
+                const spec = (rubric.sheets && rubric.sheets[sheetName]) || {};
+                const secs = new Set((spec.checks || []).map(r => r.section || '(No section)'));
+                secs.forEach(s => folded.add(s));
+            }
+            render(); // re-render the current view
+        }
+
+        // Helper: fall back to the first sheet if we don't know which is active
+        function getActiveSheetName() {
+            if (UI.activeSheet && (rubric.sheets || {})[UI.activeSheet]) return UI.activeSheet;
+            const names = Object.keys(rubric.sheets || {});
+            return names[0] || '';
+        }
+
+
+
+        // ensure every rule has a stable id we can use across reorders/moves
+        function ensureRuleIds() {
+            UI.ruleSeq = UI.ruleSeq || 1;
+            const sheets = rubric.sheets || {};
+            for (const spec of Object.values(sheets)) {
+                const checks = spec.checks || [];
+                for (const r of checks) {
+                    if (!r.__id) r.__id = `r${UI.ruleSeq++}`;
+                }
+            }
+        }
+
         // --- PIVOT HELPERS (UI) ---
         function ensurePivot(r) {
             const p = r.pivot || {};
-            // normalize arrays
             const arr = v => Array.isArray(v) ? v : (v ? [v] : []);
-            // map PascalCase → camelCase if needed
             const pv = {
                 sheet: p.sheet ?? p.Sheet ?? null,
                 tableNameLike: p.tableNameLike ?? p.TableNameLike ?? null,
@@ -577,16 +918,15 @@
             return wrap;
         }
 
-
         function ensureChart(r) {
             const c = r.chart || {};
             const norm = {
                 sheet: c.sheet ?? null,
                 name_like: c.name_like ?? null,
-                type: c.type ?? null,            // line, column, bar, pie, scatter, area, doughnut, radar, bubble
+                type: c.type ?? null,
                 title: c.title ?? null,
                 title_ref: c.title_ref ?? null,
-                legend_pos: c.legend_pos ?? null, // t,r,b,l,tr
+                legend_pos: c.legend_pos ?? null,
                 data_labels: (typeof c.data_labels === 'boolean') ? c.data_labels : null,
                 x_title: c.x_title ?? null,
                 y_title: c.y_title ?? null,
@@ -597,19 +937,7 @@
                     val_ref: s?.val_ref ?? null
                 })) : []
             };
-            r.chart = norm;   // write back normalized shape so preview is clean
-            return norm;
-        }
-
-        function ensureTable(r) {
-            const t = r.table || {};
-            const norm = {
-                sheet: t.sheet ?? null,
-                name_like: t.name_like ?? null,
-                columns: Array.isArray(t.columns) ? t.columns.filter(Boolean) : [],
-                require_order: (typeof t.require_order === 'boolean') ? t.require_order : null
-            };
-            r.table = norm;
+            r.chart = norm;
             return norm;
         }
 
@@ -618,15 +946,285 @@
         const RULE_TYPES = ['value', 'formula', 'format', 'range_value', 'range_formula', 'range_format', 'custom_note', 'range_sequence', 'range_numeric', 'pivot_layout', 'conditional_format', 'chart', 'table'];
         const emptyRule = (type = 'formula') => ({ type, points: 1, cell: '', range: '', note: '', tolerance: null, any_of: null, expected_from_key: null, expected: null, expected_regex: null, expected_formula: null, allow_regex: null, expected_formula_regex: null, format: null, require: null, start: null, step: null, require_absolute: null });
 
+        function sortKey(rule, idx) {
+            const sec = (rule.section || '').toLowerCase();
+            const cell = (rule.cell || '').toUpperCase();
+            const t = (rule.type || '').toLowerCase();
+            switch (UI.sortBy) {
+                case 'cell': return [cell, t, idx];
+                case 'type': return [t, cell, idx];
+                case 'section-type-cell': return [sec, t, cell, idx];
+                case 'section-cell':
+                default: return [sec, cell, idx];
+            }
+        }
+
+        function esc(s) { return (s ?? '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+        // -------- Compact rules list used both in sheets and in the right rail
+        function renderRulesList(sheetName, spec, host) {
+            host.innerHTML = '';
+
+            const rows = (spec.checks || [])
+                .map((r, i) => [r, i])
+                .sort((a, b) => {
+                    const ka = sortKey(a[0], a[1]), kb = sortKey(b[0], b[1]);
+                    return ka < kb ? -1 : ka > kb ? 1 : 0;
+                });
+
+            const folded = UI.fold[sheetName] instanceof Set ? UI.fold[sheetName] : (UI.fold[sheetName] = new Set());
+
+            if (UI.groupBySection) {
+                const groups = new Map();
+                for (const [r, i] of rows) {
+                    const sec = r.section || '(No section)';
+                    if (!groups.has(sec)) groups.set(sec, []);
+                    groups.get(sec).push([r, i]);
+                }
+
+                for (const [sec, arr] of groups) {
+                    const group = el('div', 'section-group');
+                    const head = el('div', 'section-header', `
+                                                            <span class="chev">▾</span>
+                                                            <strong>${esc(sec)}</strong>
+                                                            <span class="count">${arr.length} ${arr.length === 1 ? 'rule' : 'rules'}</span>
+                                                            `);
+                    const isCollapsed = folded.has(sec);
+                    if (isCollapsed) { group.classList.add('collapsed'); head.querySelector('.chev').style.transform = 'rotate(-90deg)'; }
+
+                    head.onclick = () => {
+                        const collapsed = group.classList.toggle('collapsed');
+                        head.querySelector('.chev').style.transform = collapsed ? 'rotate(-90deg)' : '';
+                        if (collapsed) folded.add(sec); else folded.delete(sec);
+                    };
+
+                    group.append(head);
+
+                    for (const [r] of arr) {
+                        const id = r.__id; // set by ensureRuleIds()
+                        const row = el('div', 'rule-row', `
+                                                            <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
+                                                            <div class="mono">${esc(r.cell || '(range)')}</div>
+                                                            <div class="mono">${esc(r.type || '')}</div>
+                                                            <div>${esc(r.note || '')}</div>
+                                                        `);
+                        row.querySelector('.rule-select').onchange = (ev) => {
+                            if (ev.target.checked) UI.selected.add(id); else UI.selected.delete(id);
+                        };
+                        group.append(row);
+                    }
+
+                    host.append(group);
+                }
+                return;
+            }
+
+            // flat fallback
+            for (const [r] of rows) {
+                const id = r.__id;
+                const row = el('div', 'rule-row', `
+                                                  <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
+                                                  <div class="mono">${esc(r.cell || '(range)')}</div>
+                                                  <div class="mono">${esc(r.type || '')}</div>
+                                                  <div>${esc(r.note || '')}</div>
+                                                `);
+                row.querySelector('.rule-select').onchange = (ev) => {
+                    if (ev.target.checked) UI.selected.add(id); else UI.selected.delete(id);
+                };
+                host.append(row);
+            }
+        }
+
+
+
+        // -------- Right rail: per-sheet expandable lists of rules
+        function renderRailRules() {
+            const host = document.getElementById('railRules');
+            if (!host) return;
+
+            const openBefore = new Set(UI.railOpen instanceof Set ? UI.railOpen : (UI.railOpen = new Set()));
+            host.innerHTML = '';
+
+            for (const [name, spec] of Object.entries(rubric.sheets || {})) {
+                const box = el('div', 'rail-sheet');
+                const head = el('div', 'rail-head', `
+                                                      <span class="chev">${openBefore.has(name) ? '▾' : '▸'}</span>
+                                                      <strong>${esc(name)}</strong>
+                                                      <span class="count">${(spec.checks || []).length} ${((spec.checks || []).length === 1 ? 'rule' : 'rules')}</span>
+                                                    `);
+                const body = el('div', 'rail-body');
+
+                if (!openBefore.has(name)) box.classList.add('collapsed');
+
+                head.onclick = () => {
+                    const wasOpen = UI.railOpen.has(name);
+                    if (wasOpen) UI.railOpen.delete(name); else UI.railOpen.add(name);
+                    box.classList.toggle('collapsed', wasOpen);
+                    head.querySelector('.chev').textContent = wasOpen ? '▸' : '▾';
+                };
+
+                renderRulesList(name, spec, body);
+                box.append(head, body);
+                host.append(box);
+            }
+        }
+
+
         // ---------- render
         function render() {
+            UI.selected = UI.selected instanceof Set ? UI.selected : new Set();
+
+            ensureRuleIds();
+
             $('#optPassFail').checked = !(rubric.report && rubric.report.include_pass_fail_column === false);
             $('#optComments').checked = !(rubric.report && rubric.report.include_comments === false);
             $('#totalPoints').value = rubric.points ?? '';
             const host = $('#sheets'); host.innerHTML = '';
             Object.entries(rubric.sheets).forEach(([name, spec]) => host.appendChild(sheetBlock(name, spec)));
             refreshJsonPreview();
+            refreshMovePicker();
+            renderRailRules();
         }
+
+        // Toolbar events
+        const elGroup = document.getElementById('groupBySection');
+        if (elGroup) elGroup.addEventListener('change', (e) => {
+            UI.groupBySection = !!e.target.checked;
+            render();
+        });
+
+        const elSort = document.getElementById('sortBy');
+        if (elSort) elSort.addEventListener('change', (e) => {
+            UI.sortBy = e.target.value;
+            render();
+        });
+
+        const elMove = document.getElementById('bulkMoveBtn');
+        if (elMove) elMove.addEventListener('click', () => {
+            if (UI.selected.size === 0) { alert('Select at least one rule.'); return; }
+            const sec = prompt('Move selected rules to section:', '');
+            if (sec === null) return;
+
+            for (const key of UI.selected) {
+                const [sheet, idxStr] = key.split(':');
+                const spec = rubric.sheets[sheet];
+                const i = parseInt(idxStr, 10);
+                if (spec && spec.checks[i]) spec.checks[i].section = sec || null;
+            }
+            render();
+        });
+
+        // Expand/Collapse all sections for the currently hovered sheet (UI.activeSheet)
+        document.getElementById('btnExpandSections')?.addEventListener('click', () => {
+            expandAllSections(getActiveSheetName(), true);
+        });
+        document.getElementById('btnCollapseSections')?.addEventListener('click', () => {
+            expandAllSections(getActiveSheetName(), false);
+        });
+
+        // ---- collect unique section names across all rules
+        function allSectionNames() {
+            const set = new Set();
+            for (const sheet of Object.values(rubric.sheets || {})) {
+                for (const r of (sheet.checks || [])) {
+                    const s = (r.section || '').trim();
+                    if (s) set.add(s);
+                }
+            }
+            return [...set].sort((a, b) => a.localeCompare(b));
+        }
+
+        // ---- (re)populate the section picker
+        function refreshMovePicker() {
+            const sel = document.getElementById('moveToSection');
+            if (!sel) return;
+            const keep = sel.value;
+            sel.innerHTML = '';
+            const opt0 = new Option('Move selected to section…', '', true, false);
+            const optNew = new Option('+ New section…', '__new__', false, false);
+            sel.append(opt0, optNew);
+            for (const s of allSectionNames()) sel.append(new Option(s, s, false, false));
+            // restore previous choice if still present
+            if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+        }
+
+        // ---- locate the selected rules (checkboxes live next to each rule row)
+        function getSelectedRuleRefs() {
+            // Works with any checkbox that has data-ref like "SheetName|12"
+            // If your checkboxes don’t have data-ref yet, see comment below.
+            const boxes = document.querySelectorAll('input[type="checkbox"][data-ref].rule-select:checked');
+            const refs = [];
+            boxes.forEach(b => {
+                const [sheetName, idxStr] = String(b.dataset.ref || '').split('|');
+                const idx = Number(idxStr);
+                if (sheetName && Number.isInteger(idx)) refs.push({ sheetName, idx });
+            });
+            return refs;
+        }
+
+        // ---- perform the move
+        async function moveSelectedToSection() {
+            const sel = document.getElementById('moveToSection');
+            if (!sel) return;
+
+            let target = sel.value;
+            if (!target) return; // no-op
+            if (target === '__new__') {
+                const name = prompt('New section name:', '');
+                if (!name) return;
+                target = name.trim();
+            }
+
+            const refs = getSelectedRuleRefs();
+            if (refs.length === 0) { alert('No rules selected.'); return; }
+
+            for (const { sheetName, idx } of refs) {
+                const sheet = rubric.sheets?.[sheetName];
+                if (!sheet || !sheet.checks || !sheet.checks[idx]) continue;
+                sheet.checks[idx].section = target;    // <- move
+            }
+
+            render();                 // redraw builder
+            refreshMovePicker();      // keep picker updated
+            clearSelection();         // optional
+        }
+
+        function clearSelection() {
+            document.querySelectorAll('input[type="checkbox"].rule-select:checked')
+                .forEach(b => (b.checked = false));
+        }
+
+        // ---- hook buttons
+        document.getElementById('btnMoveToSection').onclick = () => {
+            const sel = Array.from(UI.selected || []);
+            if (!sel.length) return;
+
+            let dest = document.getElementById('moveToSection').value;
+            if (!dest) return;
+
+            if (dest === '__new__') {
+                const name = prompt('Name for new section:');
+                if (!name) return;
+                dest = name;
+            }
+
+            // update section for any selected rule (by id)
+            for (const spec of Object.values(rubric.sheets || {})) {
+                const checks = spec.checks || [];
+                for (const r of checks) {
+                    if (UI.selected.has(r.__id)) r.section = dest;
+                }
+            }
+
+            // clear selection and re-render everything (main + rail + JSON + pickers)
+            UI.selected.clear();
+            render();
+        };
+        document.getElementById('btnClearSelection').onclick = () => {
+            UI.selected.clear();
+            render();
+        };
+
 
         document.getElementById('rubricFile').addEventListener('change', async (e) => {
             const f = e.target.files?.[0];
@@ -634,9 +1232,9 @@
             try {
                 const text = await f.text();
                 const obj = JSON.parse(text);
-                rubric = obj;                // <-- replace builder state
-                render();                    // <-- redraw builder blocks
-                refreshJsonPreview();        // <-- refresh preview textarea
+                rubric = obj;
+                render();
+                refreshJsonPreview();
             } catch (err) {
                 alert('Invalid rubric JSON: ' + (err?.message || err));
             }
@@ -658,12 +1256,26 @@
 
         function sheetBlock(name, spec) {
             const wrap = el('div', 'sheet');
+
+            // mark the DOM node and remember which sheet the mouse is over
+            wrap.dataset.name = name;
+            wrap.addEventListener('mouseenter', () => { UI.activeSheet = name; });
+
             const header = el('div', 'hstack');
             const nameInput = el('input'); nameInput.type = 'text'; nameInput.value = name; nameInput.style.width = '260px';
             const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
             header.append(el('div', '', '<span class="tiny">Sheet name</span><br/>'), nameInput, btnDup, btnDel);
             wrap.append(header);
-            const list = el('div', 'stack'); (spec.checks || []).forEach((r, i) => list.append(ruleBlock(spec, r, i))); wrap.append(list);
+
+            // COMPACT (grouped) LIST just above the full editors
+            const compactHost = el('div', 'stack');
+            wrap.append(compactHost);
+            renderRulesList(name, spec, compactHost);
+
+            const list = el('div', 'stack');
+            (spec.checks || []).forEach((r, i) => list.append(ruleBlock(name, spec, r, i)));
+            wrap.append(list);
+
             const btnAdd = el('button', 'ghost', '+ Add Rule'); btnAdd.onclick = () => { spec.checks.push(emptyRule('formula')); render(); }; wrap.append(btnAdd);
             nameInput.onchange = () => { const newName = (nameInput.value || 'Sheet').trim(); if (newName !== name) { rubric.sheets[newName] = spec; delete rubric.sheets[name]; render(); } };
             btnDel.onclick = () => { delete rubric.sheets[name]; render(); };
@@ -671,11 +1283,33 @@
             return wrap;
         }
 
-        function ruleBlock(spec, r, idx) {
+        function ruleBlock(sheetName, spec, r, idx) {
             const b = el('div', 'rule');
-            const row1 = el('div', 'row');          // header row
+            const row1 = el('div', 'row');
 
-            // --- controls you already create ---
+            // ensure this rule has a stable id
+            if (!r.__id) { UI.ruleSeq = (UI.ruleSeq || 1); r.__id = `r${UI.ruleSeq++}`; }
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'rule-select';
+            // use the same id system as the compact list / rail
+            cb.dataset.id = r.__id;
+            cb.checked = UI.selected.has(r.__id);
+            cb.onchange = (e) => {
+                if (e.target.checked) UI.selected.add(r.__id);
+                else UI.selected.delete(r.__id);
+            };
+
+            // put it at the very left of the row
+            const cbWrap = document.createElement('div');
+            cbWrap.style.display = 'flex';
+            cbWrap.style.alignItems = 'center';
+            cbWrap.append(cb);
+
+            // ensure it appears first in row1
+            row1.append(cbWrap);
+
             const typeSel = el('select');
             RULE_TYPES.forEach(t => {
                 const o = el('option'); o.value = t; o.textContent = t;
@@ -687,26 +1321,23 @@
             const range = el('input'); range.placeholder = 'e.g. A2:B11'; range.value = r.range ?? '';
             const note = el('input'); note.placeholder = 'Note'; note.value = r.note ?? '';
 
-            // gentle sizing so the row looks neat
             typeSel.style.minWidth = '160px';
             pts.style.width = '84px';
             cell.style.width = '140px';
             range.style.width = '220px';
             note.style.width = '240px';
 
-            // Section
             const section = el('input');
             section.placeholder = 'Section (optional, e.g., SUMIFS)';
             section.value = r.section ?? '';
             section.onchange = () => { r.section = (section.value || '').trim() || null; refreshJsonPreview(); };
             const labelledSection = labelled(section, 'Section');
-            labelledSection.classList.add('section');   // <- lets CSS size it
+            labelledSection.classList.add('section');
 
-            // Move buttons
             const btnUp = el('button', 'ghost btn-icon', '▲');
             const btnDown = el('button', 'ghost btn-icon', '▼');
             btnUp.title = 'Move up'; btnDown.title = 'Move down';
-            const arrows = el('div', 'arrows hstack');   // <- has the reserved width
+            const arrows = el('div', 'arrows hstack');
             arrows.style.flexDirection = 'column';
             arrows.style.gap = '6px';
             arrows.append(btnUp, btnDown);
@@ -718,7 +1349,6 @@
                 if (idx < spec.checks.length - 1) { [spec.checks[idx + 1], spec.checks[idx]] = [spec.checks[idx], spec.checks[idx + 1]]; render(); }
             };
 
-            // ✅ wrap Type in 'labelled' so sizing CSS applies
             row1.append(
                 arrows,
                 labelledSection,
@@ -726,11 +1356,9 @@
                 labelled(pts, 'Pts'),
                 labelled(cell, 'Cell'),
                 labelled(range, 'Range')
-                // (leave NOTE for row2 below to keep header compact)
             );
             b.append(row1);
 
-            // Optional: put Note on its own row to avoid cramping the header
             const row2 = el('div', 'row');
             row2.append(labelled(note, 'Note'));
             b.append(row2);
@@ -756,9 +1384,6 @@
 
             const pvValuesUI = pivotValuesBlock(r, refreshJsonPreview);
 
-
-            // ---------- Number-format UI helpers (kind <-> pattern) ----------
-
             const FMT_KIND_ORDER = [
                 'general', 'number', 'currency', 'accounting', 'percent',
                 'short_date', 'long_date', 'time', 'datetime', 'scientific', 'fraction', 'text', 'custom'
@@ -781,12 +1406,11 @@
                     case 'scientific': return '0' + (d > 0 ? ('.' + '0'.repeat(d)) : '.0') + 'E+00';
                     case 'fraction': return '# ?/?';
                     case 'text': return '@';
-                    case 'custom': return ''; // user will type in the text box
+                    case 'custom': return '';
                     default: return '';
                 }
             }
 
-            // Rough guesser to prefill dropdown/spinner from an existing pattern
             function guessKindAndDecimals(fmt) {
                 const raw = (fmt || '').trim();
                 const first = raw.split(';')[0];
@@ -815,21 +1439,16 @@
                 return { kind: 'custom', decimals: null, raw };
             }
 
-
             function showFor(type) {
                 row2.innerHTML = '';
 
-                // Replace the duplicate helper inside showFor(...) with this one:
                 function hideCellAndRange() {
-                    // Hide the generic Cell / Range wrappers (they're not used by some rule types)
                     const hide = inp => inp?.closest('.labelled')?.classList.add('hidden');
-                    // search inside this rule block `b`
                     hide(b.querySelector('input[placeholder="e.g. B12"]'));
                     hide(b.querySelector('input[placeholder="e.g. A2:B11"]'));
                 }
 
                 function hideSeriesControls() {
-                    // Hide any “Series (categories/values…) / + Add series” bits (meant for charts)
                     const seriesLabel = Array.from(row2.querySelectorAll('.tiny, .muted, div'))
                         .find(n => /Series \(categories\/values/i.test(n.textContent || ''));
                     if (seriesLabel) {
@@ -844,19 +1463,15 @@
                     }
                 }
 
-
                 if (type === 'formula') {
                     row2.append(labelled(exf, 'Expected formula'), labelled(regex, 'Regex'), fromKey.wrap, absReq.wrap);
 
-                    // --- Expected VALUE (of the evaluated formula) + absolute TOLERANCE ---
                     const expVal = el('input');
                     expVal.placeholder = 'e.g. 0.2154 or 21.54%';
                     expVal.style.width = '220px';
-                    // r.expected may be a string/number/null; show it as text
                     expVal.value = (r.expected ?? '') + '';
                     expVal.onchange = () => {
                         const v = (expVal.value ?? '').trim();
-                        // store as string or null; grader handles numeric/percent parsing
                         r.expected = v === '' ? null : v;
                         refreshJsonPreview();
                     };
@@ -869,14 +1484,12 @@
                     tol.value = (r.tolerance ?? '');
                     tol.onchange = () => {
                         const v = (tol.value ?? '').trim();
-                        r.tolerance = v === '' ? null : +v; // numeric or null
+                        r.tolerance = v === '' ? null : +v;
                         refreshJsonPreview();
                     };
 
-                    // append the new controls to the same row as the formula fields
                     row2.append(labelled(expVal, 'Expected value'), labelled(tol, 'Tolerance (abs)'));
 
-                    // --- "any_of" support for formulas ---
                     r.any_of = Array.isArray(r.any_of) ? r.any_of : [];
 
                     const list = el('div', 'stack');
@@ -891,7 +1504,6 @@
                             altF.value = opt.expected_formula ?? '';
                             altF.onchange = () => {
                                 r.any_of[i].expected_formula = altF.value.trim() || null;
-                                // if any alternatives exist, clear the single expected_formula
                                 if ((r.any_of || []).length > 0) {
                                     r.expected_formula = null;
                                     exf.value = '';
@@ -911,7 +1523,6 @@
                             const del = el('button', 'ghost danger', 'Remove');
                             del.onclick = () => {
                                 r.any_of.splice(i, 1);
-                                // if none left, allow the main expected_formula again (do not auto-fill)
                                 if (r.any_of.length === 0) {
                                     r.expected_formula = (exf.value.trim() || null);
                                 } else {
@@ -942,36 +1553,29 @@
 
                     row2.append(anyWrap, btnDup, btnDel);
                 } else if (type === 'value') {
-                    // ---------- helpers ----------
                     const cast = v => (/^-?\d+(?:\.\d+)?$/.test(v) ? +v : v);
                     const clean = s => (s ?? '').trim();
 
-                    // ensure structure
                     r.any_of = Array.isArray(r.any_of) ? r.any_of : [];
 
-                    // ---------- main Expected (single only) ----------
                     const mainExp = el('input');
                     mainExp.placeholder = 'Expected (single value)';
                     mainExp.style.width = '260px';
 
-                    // initialize from model
                     if ((r.any_of || []).length > 0) {
-                        mainExp.value = '';          // multiple answers → expected must be null
+                        mainExp.value = '';
                         r.expected = null;
                     } else {
                         mainExp.value = r.expected != null ? (r.expected + '') : '';
                     }
 
-                    // rule-level case sensitivity (kept)
                     const csRule = document.createElement('input');
                     csRule.type = 'checkbox';
                     csRule.checked = !!r.case_sensitive;
                     csRule.onchange = () => { r.case_sensitive = csRule.checked; refreshJsonPreview(); };
 
-                    // when user edits the single expected
                     mainExp.onchange = () => {
                         if ((r.any_of || []).length > 0) {
-                            // multiple answers exist → keep expected=null and mirror UI
                             mainExp.value = '';
                             r.expected = null;
                         } else {
@@ -981,7 +1585,6 @@
                         refreshJsonPreview();
                     };
 
-                    // ---------- any_of list (add/edit/remove) ----------
                     const list = el('div', 'stack');
 
                     function renderAnyOf() {
@@ -996,8 +1599,8 @@
                             exp.onchange = () => {
                                 const v = clean(exp.value);
                                 r.any_of[i].expected = v === '' ? null : cast(v);
-                                r.expected = null;   // enforce: multiple answers → expected=null
-                                mainExp.value = '';  // keep UI consistent
+                                r.expected = null;
+                                mainExp.value = '';
                                 refreshJsonPreview();
                             };
 
@@ -1010,10 +1613,9 @@
                             del.onclick = () => {
                                 r.any_of.splice(i, 1);
                                 if (r.any_of.length === 0) {
-                                    // with none left, allow single expected again (do not auto-fill)
                                     r.expected = clean(mainExp.value) ? cast(mainExp.value) : null;
                                 } else {
-                                    r.expected = null; // still multiple → keep null
+                                    r.expected = null;
                                     mainExp.value = '';
                                 }
                                 renderAnyOf();
@@ -1028,19 +1630,17 @@
                     const addAlt = el('button', 'ghost', 'Add answer');
                     addAlt.onclick = () => {
                         (r.any_of = r.any_of || []).push({ expected: null });
-                        r.expected = null;   // enforce shape
-                        mainExp.value = '';  // single box disabled visually
+                        r.expected = null;
+                        mainExp.value = '';
                         renderAnyOf();
                         refreshJsonPreview();
                     };
 
-                    // Duplicate / Remove rule (kept)
                     const btnDup = el('button', 'ghost', 'Duplicate');
                     const btnDel = el('button', 'ghost danger', 'Remove');
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
 
-                    // layout
                     const anyWrap = el('div', 'stack');
                     anyWrap.append(
                         el('div', 'tiny muted', 'Any of these answers (optional):'),
@@ -1056,7 +1656,6 @@
                         btnDel
                     );
 
-
                     renderAnyOf();
                     refreshJsonPreview();
                 }
@@ -1066,7 +1665,6 @@
                     const getFmt = () => r.format.number_format || '';
                     const setFmt = v => { r.format.number_format = (v || '').trim() || null; refreshJsonPreview(); };
 
-                    // ---------- Kind / Decimals / Pattern ----------
                     const kindSel = document.createElement('select');
                     [
                         ['general', 'General'],
@@ -1093,7 +1691,6 @@
                     numFmt.placeholder = 'e.g., $#,##0.00 or 0% or m/d/yy';
                     numFmt.style.width = '320px';
 
-                    // Hydrate from existing pattern (guess kind + decimals)
                     const g = guessKindAndDecimals(getFmt());
                     kindSel.value = g.kind;
                     if (g.decimals != null) decInp.value = String(g.decimals);
@@ -1121,10 +1718,7 @@
 
                     refreshVisibility();
 
-                    // ---------- NEW: Bold & Font size ----------
-                    // ensure nested object for compatibility
                     r.format.font = r.format.font || {};
-                    // read (prefer nested, fallback to flat)
                     const initBold = (r.format.font.bold ?? r.format.font_bold) ?? null;
                     const initSize = (r.format.font.size ?? r.format.font_size) ?? null;
 
@@ -1133,8 +1727,8 @@
                     boldCk.checked = !!initBold;
                     boldCk.onchange = () => {
                         const v = boldCk.checked ? true : null;
-                        r.format.font.bold = v;        // nested
-                        r.format.font_bold = v;        // flat (BC)
+                        r.format.font.bold = v;
+                        r.format.font_bold = v;
                         refreshJsonPreview();
                     };
 
@@ -1147,13 +1741,11 @@
                     sizeInp.onchange = () => {
                         const t = sizeInp.value.trim();
                         const v = t === '' ? null : Number(t);
-                        r.format.font.size = v;        // nested
-                        r.format.font_size = v;        // flat (BC)
+                        r.format.font.size = v;
+                        r.format.font_size = v;
                         refreshJsonPreview();
                     };
 
-                    // ---------- Layout ----------
-                    // Row A: Kind | Decimals | Pattern
                     const rowA = el('div', 'row');
                     rowA.style.gridTemplateColumns = '1fr 0.5fr 1.2fr';
                     rowA.style.gap = '12px';
@@ -1163,7 +1755,6 @@
                         labelled(numFmt, 'Number format (A1 pattern)')
                     );
 
-                    // Row B: Bold | Font size
                     const rowB = el('div', 'row');
                     rowB.style.gridTemplateColumns = '0.6fr 0.8fr';
                     rowB.style.gap = '12px';
@@ -1176,7 +1767,6 @@
 
                     row2.append(rowA, rowB);
 
-                    // Duplicate / Remove buttons
                     const btnDup = el('button', 'ghost', 'Duplicate');
                     const btnDel = el('button', 'ghost danger', 'Remove');
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
@@ -1203,7 +1793,6 @@
                     const right = el('div', 'stack');
                     right.append(el('div', 'tiny muted', 'Values (Field + Aggregation)'), pvValuesUI);
 
-                    // 2-column layout for pivot editor
                     const grid = el('div', 'row');
                     grid.style.gridTemplateColumns = '1fr 1fr';
                     grid.style.gap = '12px';
@@ -1215,7 +1804,6 @@
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
                     row2.append(btnDup, btnDel);
                 } else if (type === 'conditional_format') {
-                    // --- build basic labeled controls without depending on `labelled()` ---
                     const mkLabeled = (labelText, control) => {
                         const w = document.createElement('div');
                         w.className = 'stack';
@@ -1226,7 +1814,6 @@
                         return w;
                     };
 
-                    // controls
                     const sheet = document.createElement('input'); sheet.placeholder = 'Sheet (optional)';
                     const range = document.createElement('input'); range.placeholder = 'Range (e.g., B2:B50)';
 
@@ -1234,7 +1821,7 @@
                     [['cellIs', 'Cell is…'], ['expression', 'Formula (TRUE/FALSE)'], ['containsText', 'Contains text'], ['top10', 'Top/bottom N'], ['dataBar', 'Data bar'], ['colorScale', 'Color scale'], ['iconSet', 'Icon set']]
                         .forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; typ.append(o); });
 
-                    const op = document.createElement('select');  // OPERATOR
+                    const op = document.createElement('select');
                     [['gt', '> greater than'], ['ge', '≥ greater than or equal'], ['lt', '< less than'], ['le', '≤ less than or equal'], ['eq', '= equal to'], ['ne', '≠ not equal to'], ['between', 'between (inclusive)'], ['notBetween', 'not between']]
                         .forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; op.append(o); });
 
@@ -1243,7 +1830,6 @@
                     const txt = document.createElement('input'); txt.placeholder = 'Text to look for';
                     const fill = document.createElement('input'); fill.placeholder = 'Fill RGB (optional, e.g., FFFF00)';
 
-                    // hydrate rule state
                     r.cond = r.cond || {};
                     const c = r.cond;
                     sheet.value = c.sheet ?? '';
@@ -1255,13 +1841,10 @@
                     txt.value = c.text ?? '';
                     fill.value = c.fillRgb ?? '';
 
-                    // ensure operator has a visible default
                     if (!op.value || ![...op.options].some(o => o.value === op.value)) {
-                        op.selectedIndex = 0;   // first option (> greater than)
+                        op.selectedIndex = 0;
                     }
 
-
-                    // layout rows
                     const topRow = document.createElement('div');
                     topRow.className = 'hstack';
                     topRow.style.gap = '8px';
@@ -1270,7 +1853,7 @@
                     const wSheet = mkLabeled('Sheet', sheet);
                     const wRange = mkLabeled('Range', range);
                     const wType = mkLabeled('Type', typ);
-                    const wOp = mkLabeled('Operator', op);   // explicit wrapper we toggle
+                    const wOp = mkLabeled('Operator', op);
 
                     topRow.append(wSheet, wRange, wType, wOp);
                     row2.append(topRow);
@@ -1288,14 +1871,12 @@
                     botRow.append(wF1, wF2, wText, wFill);
                     row2.append(botRow);
 
-                    // actions
                     const btnDup = el('button', 'ghost', 'Duplicate');
                     const btnDel = el('button', 'ghost danger', 'Remove');
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
                     row2.append(btnDup, btnDel);
 
-                    // save + toggle
                     const save = () => {
                         const norm = s => (s || '').trim();
                         r.cond = {
@@ -1314,18 +1895,13 @@
 
                     const toggle = () => {
                         const t = typ.value;
-                        // Operator visible only when "Cell is…"
                         wOp.style.display = (t === 'cellIs') ? '' : 'none';
-                        // Value 2 only for between/notBetween under Cell is…
                         wF2.style.display = (t === 'cellIs' && (op.value === 'between' || op.value === 'notBetween')) ? '' : 'none';
-                        // Text only for containsText
                         wText.style.display = (t === 'containsText') ? '' : 'none';
-                        // Expression: operator + value2 hidden, value1 shown
                         if (t === 'expression') {
                             wOp.style.display = 'none';
                             wF2.style.display = 'none';
                         }
-                        // Style-only types: hide op + value1 + value2 + text (fill may still be used)
                         if (t === 'dataBar' || t === 'colorScale' || t === 'iconSet' || t === 'top10') {
                             wOp.style.display = 'none';
                             wF1.style.display = 'none';
@@ -1335,13 +1911,10 @@
                     };
 
                     [sheet, range, typ, op, f1, f2, txt, fill].forEach(x => x.addEventListener('change', save));
-
-                    // IMPORTANT: call toggle AFTER appending to DOM so display changes take effect
                     toggle();
                 } else if (type === 'chart') {
                     const ch = ensureChart(r);
 
-                    // left column controls
                     const cSheet = el('input'); cSheet.placeholder = 'Sheet (optional)'; cSheet.style.width = '200px'; cSheet.value = ch.sheet ?? '';
                     const cName = el('input'); cName.placeholder = 'Chart name contains'; cName.style.width = '260px'; cName.value = ch.name_like ?? '';
                     const cType = el('select');['', 'column', 'bar', 'line', 'pie', 'pie3D', 'scatter', 'area', 'doughnut', 'radar', 'bubble']
@@ -1355,7 +1928,6 @@
                     const cX = el('input'); cX.placeholder = 'X-axis title'; cX.value = ch.x_title ?? '';
                     const cY = el('input'); cY.placeholder = 'Y-axis title'; cY.value = ch.y_title ?? '';
 
-                    // series editor
                     const seriesWrap = el('div', 'stack');
                     function renderSeries() {
                         seriesWrap.innerHTML = '';
@@ -1382,7 +1954,6 @@
                     const addSeries = el('button', 'ghost', '+ Add series');
                     addSeries.onclick = () => { (ch.series = ch.series || []).push({ name: null, name_ref: null, cat_ref: null, val_ref: null }); renderSeries(); refreshJsonPreview(); };
 
-                    // save handlers
                     cSheet.onchange = () => { ch.sheet = cSheet.value.trim() || null; refreshJsonPreview(); };
                     cName.onchange = () => { ch.name_like = cName.value.trim() || null; refreshJsonPreview(); };
                     cType.onchange = () => { ch.type = cType.value || null; refreshJsonPreview(); };
@@ -1393,7 +1964,6 @@
                     cX.onchange = () => { ch.x_title = cX.value.trim() || null; refreshJsonPreview(); };
                     cY.onchange = () => { ch.y_title = cY.value.trim() || null; refreshJsonPreview(); };
 
-                    // layout (two columns to keep it neat)
                     const left = el('div', 'stack');
                     left.append(
                         labelled(cSheet, 'Sheet'),
@@ -1419,7 +1989,6 @@
                     row2.append(grid);
                     b.append(row2, el('div', 'tiny muted', 'Series (categories/values required for each):'), seriesWrap, addSeries);
 
-                    // Duplicate / Remove buttons
                     const btnDup = el('button', 'ghost', 'Duplicate');
                     const btnDel = el('button', 'ghost danger', 'Remove');
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
@@ -1428,14 +1997,11 @@
                 } else if (type === 'table') {
                     const t = ensureTable(r);
 
-                    // Hide generic inputs that don't apply to tables
                     hideCellAndRange();
                     hideSeriesControls();
 
-                    // ---------- Helpers ----------
                     const NUM_RE = /^\s*[$€£]?\s*-?\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*%?\s*$/;
 
-                    // ---------- Top: range + dims + allow extras ----------
                     const rangeRef = el('input'); rangeRef.placeholder = 'A1:D20 or Sheet!A1:D20';
                     rangeRef.value = t.range_ref || '';
                     rangeRef.onchange = () => { t.range_ref = rangeRef.value.trim() || null; refreshJsonPreview(); };
@@ -1466,7 +2032,6 @@
                     dims.append(labelled(rangeRef, 'Range (optional)'), labelled(rowsInp, 'Rows'), labelled(colsInp, 'Cols'), allowERLbl, allowECLbl);
                     row2.append(dims);
 
-                    // ---------- Whole-body match toggles ----------
                     const matchWhole = document.createElement('input'); matchWhole.type = 'checkbox';
                     const orderMatters = document.createElement('input'); orderMatters.type = 'checkbox';
                     const caseSens = document.createElement('input'); caseSens.type = 'checkbox';
@@ -1493,7 +2058,6 @@
                     );
                     row2.append(toggles);
 
-                    // ---------- Required rows (subset) ----------
                     const containsWrap = el('div', 'stack');
                     const list = el('div', 'stack');
                     function renderContains() {
@@ -1535,7 +2099,6 @@
                     row2.append(containsWrap);
                     renderContains();
 
-                    // ---------- Columns editor ----------
                     t.columns = Array.isArray(t.columns) ? t.columns.filter(Boolean) : [];
                     const colList = el('div', 'stack');
 
@@ -1588,18 +2151,15 @@
                     const actions = el('div', 'hstack'); actions.append(addCol, bulk);
                     colsWrap.append(colsLabel, colList, actions);
 
-                    // Name like
                     const nameLike = el('input');
                     nameLike.placeholder = 'Table name contains (optional)';
                     nameLike.value = t.name_like || '';
                     nameLike.onchange = () => { t.name_like = nameLike.value.trim() || null; refreshJsonPreview(); };
 
-                    // ---------- 2-column layout: columns editor (left) | preview (right) ----------
                     const left = el('div', 'stack');
                     left.append(labelled(nameLike, 'Name like'), colsWrap, reqOrderLbl);
 
                     const right = el('div', 'stack');
-                    // preview toggle + panel
                     const show = document.createElement('input'); show.type = 'checkbox';
                     const showLbl = el('label', 'checkbox'); showLbl.append(show, el('span', '', 'Show key table data'));
                     const previewPanel = el('div', 'preview-card'); previewPanel.style.display = 'none';
@@ -1621,7 +2181,6 @@
                             return;
                         }
 
-                        // Distinct chips
                         const chipsTitle = el('div', 'preview-title', 'Distinct values by column (sample up to 12):');
                         const chipsGrid = el('div', 'chips-grid');
 
@@ -1638,7 +2197,6 @@
                             chipsGrid.append(col);
                         });
 
-                        // Data grid
                         const N = 25;
                         const gridTitle = el('div', 'preview-title', `Previewing first ${Math.min(N, rows.length)} of ${rows.length} data rows:`);
                         const tbl = document.createElement('table'); tbl.className = 'mini-table';
@@ -1669,17 +2227,14 @@
                     grid.append(left, right);
                     row2.append(grid);
 
-                    // ---------- Duplicate / Remove ----------
                     const btnDup = el('button', 'ghost', 'Duplicate');
                     const btnDel = el('button', 'ghost danger', 'Remove');
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
                     row2.append(btnDup, btnDel);
 
-                    // initial paint
                     renderColumns();
                 } else {
-                    // fallback
                     const btnDup = el('button', 'ghost', 'Duplicate'); const btnDel = el('button', 'ghost danger', 'Remove');
                     btnDup.onclick = () => { spec.checks.splice(idx + 1, 0, JSON.parse(JSON.stringify(r))); render(); };
                     btnDel.onclick = () => { spec.checks.splice(idx, 1); render(); };
@@ -1706,9 +2261,8 @@
             return b;
         }
 
-
         function labelled(input, label) {
-            const box = el('div', 'stack labelled');  // <-- add labelled
+            const box = el('div', 'stack labelled');
             box.append(el('div', 'tiny muted', label), input);
             return box;
         }
@@ -1727,6 +2281,7 @@
             render();
         }
 
+        // ----- SINGLE ensureTable (complete version) -----
         function ensureTable(r) {
             const t = r.table || {};
             r.table = {
@@ -1742,7 +2297,6 @@
                 allow_extra_cols: (typeof t.allow_extra_cols === 'boolean') ? t.allow_extra_cols : (t.allow_extra_cols ? true : null),
                 contains_rows: Array.isArray(t.contains_rows) ? t.contains_rows : [],
 
-                // NEW body match options + captured body
                 body_match: (typeof t.body_match === 'boolean') ? t.body_match : (t.body_rows ? true : null),
                 body_order_matters: (typeof t.body_order_matters === 'boolean') ? t.body_order_matters : null,
                 body_case_sensitive: (typeof t.body_case_sensitive === 'boolean') ? t.body_case_sensitive : null,
@@ -1767,25 +2321,34 @@
         const builderBody = document.getElementById('builderBody');
         const builderToggle = document.getElementById('btnToggleBuilder');
 
+        const builderRail = document.querySelector('.rules-rail');   // right-side sticky card
+        const sectionsDock = document.getElementById('sectionsDock'); // slide-out sections panel
+        const sectionsDockBtn = document.getElementById('toggleSectionsDock'); // floating button
+
         function setBuilderCollapsed(on) {
-            if (!builderBody) return;
-            // Prefer toggling on the card if present; fall back to inlining a style
+            // Prefer toggling on the card if present; fall back to inline style
             builderCard?.classList.toggle('collapsed', !!on);
-            if (!builderCard) builderBody.style.display = on ? 'none' : '';
+            if (!builderCard && builderBody) builderBody.style.display = on ? 'none' : '';
+
+            // Hide/show the extra pieces so they behave with the builder
+            [builderRail, sectionsDock, sectionsDockBtn].forEach(el => {
+                if (el) el.classList.toggle('hidden', !!on);
+            });
+
             if (builderToggle) builderToggle.textContent = on ? 'Show builder' : 'Hide builder';
             try { localStorage.setItem('builderCollapsed', on ? '1' : '0'); } catch { }
         }
 
-        // init from saved preference
         setBuilderCollapsed((localStorage.getItem('builderCollapsed') === '1'));
 
         // click handler
         builderToggle?.addEventListener('click', (e) => {
             e.preventDefault();
-            const next = builderCard ? !builderCard.classList.contains('collapsed') : (builderBody.style.display !== 'none');
+            const next = builderCard
+                ? !builderCard.classList.contains('collapsed')
+                : (builderBody?.style.display !== 'none');
             setBuilderCollapsed(next);
         });
-
 
         // Auto-rubric from key
         async function generateFromKey() {
@@ -1799,16 +2362,16 @@
             const url = `/api/auto-rubric`;
             const form = new FormData();
             form.append('key', key);
-            if (hint) form.append('sheet', hint);         // <-- server expects 'sheet'
-            form.append('all', allSheets ? 'true' : 'false'); // <-- server expects 'all'
-            if (totalStr) form.append('total', totalStr);  // <-- server expects 'total'
+            if (hint) form.append('sheet', hint);
+            form.append('all', allSheets ? 'true' : 'false');
+            if (totalStr) form.append('total', totalStr);
 
             try {
                 const res = await fetch(url, { method: 'POST', body: form });
                 if (!res.ok) { const t = await res.text(); throw new Error(t || `HTTP ${res.status}`); }
                 const rub = await res.json();
                 $('#jsonBox').value = JSON.stringify(rub, null, 2);
-                rubric = rub; // reset builder to server rubric
+                rubric = rub;
                 render();
             } catch (err) {
                 console.error(err);
@@ -1836,7 +2399,7 @@
 
                 const res = await fetch('/api/grade', { method: 'POST', body: fd });
                 const txt = await res.text();
-                if (!res.ok) { alert(txt || `HTTP ${res.status}`); return; }   // << important
+                if (!res.ok) { alert(txt || `HTTP ${res.status}`); return; }
                 showReport(txt);
             } catch (err) { console.error(err); alert('Grade failed'); }
         };
@@ -1850,7 +2413,6 @@
                     return;
                 }
 
-                // send exactly what's in the preview box
                 const jsonBlob = new Blob([$('#jsonBox').value], { type: 'application/json' });
                 const fd = new FormData();
                 fd.append('key', key);
@@ -1859,12 +2421,10 @@
 
                 const res = await fetch('/api/grade', { method: 'POST', body: fd });
                 const txt = await res.text();
-                if (!res.ok) { alert(txt || `HTTP ${res.status}`); return; }   // << important
+                if (!res.ok) { alert(txt || `HTTP ${res.status}`); return; }
                 showReport(txt);
             } catch (err) { console.error(err); alert('Grade failed'); }
         };
-
-
 
         // ---------- results viewer
         let lastReportRaw = '';
@@ -1873,26 +2433,21 @@
         function keyForRule(r) {
             const t = (r.type || 'rule');
 
-            // Charts
             if (t === 'chart' && r.chart) {
                 const sh = (r.chart.sheet || '').trim();
                 const nm = (r.chart.name_like || '').trim();
                 if (nm) return `chart:${sh}${(sh && nm ? '/' : '')}${nm}`;
 
-                // prefer type first
                 const typ = (r.chart.type || '').trim().toLowerCase();
                 if (sh && typ) return `chart:${sh}|type=${typ}`;
 
-                // then title – include the value so it’s unique
                 const title = (r.chart.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
                 if (sh && title) return `chart:${sh}|title=${title}`;
 
-                // fallback to sheet
                 if (sh) return `chart:${sh}`;
                 return 'chart';
             }
 
-            // Tables
             if (t === 'table' && r.table) {
                 const sh = (r.table.sheet || '').trim();
                 const nm = (r.table.name_like || r.table.tableNameLike || '').trim();
@@ -1900,7 +2455,6 @@
                 if (sh) return `table:${sh}`;
             }
 
-            // Pivots
             if (t === 'pivot' && r.pivot) {
                 const sh = (r.pivot.sheet || '').trim();
                 const nm = (r.pivot.tableNameLike || '').trim();
@@ -1911,8 +2465,6 @@
             const loc = (r.cell && r.cell.trim()) || (r.range && r.range.trim()) || '';
             return t + (loc ? (':' + loc) : '');
         }
-
-
 
         function buildSectionIndex() {
             const map = new Map();
@@ -1925,13 +2477,11 @@
             return map;
         }
 
-
         function showReport(text) {
             let data;
             try { data = JSON.parse(text); } catch { alert('Bad JSON from server'); return; }
             lastReportRaw = text;
 
-            // Normalize rows from several possible shapes
             let rows = [];
             if (Array.isArray(data)) rows = data;
             else if (Array.isArray(data.students)) rows = data.students;
@@ -1948,19 +2498,17 @@
             }
 
             for (const r of rows) {
-                // Support error rows: { student, error }
                 if (r && r.error && (r.student || r.name)) {
                     const card = el('div', 'card');
                     const hdr = el('div', 'hstack');
                     hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
-                      <span class="tag fail">FAIL</span>
-                      <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                                  <span class="tag fail">FAIL</span>
+                                  <span class="muted">${escapeHtml(String(r.error))}</span>`;
                     card.appendChild(hdr);
                     body.appendChild(card);
                     continue;
                 }
 
-                // Unwrap nested shape { student, grade }
                 const isNested = r && typeof r.grade === 'object';
                 const grade = isNested ? r.grade : r;
 
@@ -1969,7 +2517,6 @@
                 const earned = grade.score_numeric ?? grade.earned ?? grade.Earned ?? 0;
                 const details = grade.details ?? grade.Details ?? [];
 
-                // Header: PASS only if 100%, else FAIL
                 const pNum = Number(points), eNum = Number(earned);
                 const headerPass = pNum > 0 && Math.abs(eNum - pNum) < 1e-9;
                 const headerClass = headerPass ? 'pass' : 'fail';
@@ -1978,23 +2525,21 @@
                 const card = el('div', 'card');
                 const hdr = el('div', 'hstack');
                 hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
-                    <span class="tag ${headerClass}">${headerStatus}</span>
-                    <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                                <span class="tag ${headerClass}">${headerStatus}</span>
+                                <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
                 card.appendChild(hdr);
 
-                // Table
                 const tbl = el('table');
                 const thead = el('thead');
                 thead.innerHTML = `<tr>
-                      <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
-                      </tr>`;
+                                  <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                                  </tr>`;
                 tbl.appendChild(thead);
 
                 const tb = document.createElement('tbody');
                 const sectionIndex = buildSectionIndex();
                 const sectionTotals = new Map();
 
-                // Section totals (for section header rows)
                 for (const d of details) {
                     const sec = sectionIndex.get(String(d.check ?? d.rule ?? '')) || null;
                     if (!sec) continue;
@@ -2012,14 +2557,13 @@
                     const tr = document.createElement('tr');
                     tr.className = 'section-row';
                     tr.innerHTML = `
-                     <td colspan="5" style="font-weight:600; padding-top:10px;">
-                     ${escapeHtml(sec)}
-                     <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
-                     </td>`;
+                                 <td colspan="5" style="font-weight:600; padding-top:10px;">
+                                 ${escapeHtml(sec)}
+                                 <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+                                 </td>`;
                     tb.appendChild(tr);
                 }
 
-                // Rows (PASS / PARTIAL / FAIL)
                 for (const d of details) {
                     const ok = (d.passed ?? d.Passed);
                     const okBool = typeof ok === 'boolean' ? ok : (Number(d.earned) >= Number(d.points));
@@ -2032,16 +2576,16 @@
                     tr.dataset.status = okBool ? 'pass' : (partialBool ? 'partial' : 'fail');
 
                     tr.innerHTML = `
-            <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
-            <td class="mono">${fmtNum(d.points)}</td>
-            <td class="mono">${fmtNum(d.earned)}</td>
-            <td>${okBool
+                        <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+                        <td class="mono">${fmtNum(d.points)}</td>
+                        <td class="mono">${fmtNum(d.earned)}</td>
+                        <td>${okBool
                             ? '<span class="tag pass">PASS</span>'
                             : (partialBool
                                 ? '<span class="tag partial">PARTIAL</span>'
                                 : '<span class="tag fail">FAIL</span>')
                         }</td>
-            <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+                        <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
                     tb.appendChild(tr);
                 }
 
@@ -2050,16 +2594,12 @@
                 body.appendChild(card);
             }
 
-            // Respect “Show only misses” toggle
             const on = localStorage.getItem('onlyMisses') === '1' || document.getElementById('toggleOnlyMisses')?.checked;
             document.getElementById('resultsCard').classList.toggle('only-misses', !!on);
 
             document.getElementById('resultsCard').style.display = '';
             window.scrollTo({ top: document.getElementById('resultsCard').offsetTop - 10, behavior: 'smooth' });
         }
-
-
-
 
         const toggleOnlyMisses = document.getElementById('toggleOnlyMisses');
         if (toggleOnlyMisses) {

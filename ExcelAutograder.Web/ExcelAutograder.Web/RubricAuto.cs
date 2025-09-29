@@ -85,6 +85,7 @@ public static class RubricAuto
                 checks.Add(new Rule { Type = "custom_note", Points = 0, Note = "No auto-generated checks for this sheet" });
 
             rub.Sheets[ws.Name] = new SheetSpec { Checks = checks };
+            NormalizeOrder(rub.Sheets[ws.Name]);
             rub.Points += checks.Sum(c => c.Points);
         }
 
@@ -93,6 +94,7 @@ public static class RubricAuto
             if (!rub.Sheets.ContainsKey(kv.Key))
             {
                 rub.Sheets[kv.Key] = new SheetSpec { Checks = kv.Value };
+                NormalizeOrder(rub.Sheets[kv.Key]);
                 rub.Points += kv.Value.Sum(r => r.Points);
             }
         }
@@ -895,6 +897,79 @@ public static class RubricAuto
         }
         rub.Points = desiredTotal;
     }
+
+    // Converts an A1 address to sortable (col,row). Non-addresses sort last.
+    private static (int col, int row) A1ToKey(string? a1)
+    {
+        if (string.IsNullOrWhiteSpace(a1)) return (int.MaxValue, int.MaxValue);
+        int i = 0; while (i < a1.Length && char.IsLetter(a1[i])) i++;
+        var colStr = a1.Substring(0, i).ToUpperInvariant();
+        var rowStr = a1.Substring(i);
+        int col = 0;
+        foreach (var ch in colStr) { col = col * 26 + (ch - 'A' + 1); }
+        int row = int.TryParse(rowStr, out var r) ? r : int.MaxValue;
+        return (col, row);
+    }
+
+    // Give common rule types a stable type-rank
+    private static int TypeRank(string? t) => t?.ToLowerInvariant() switch
+    {
+        "format" => 0,
+        "table" => 1,
+        "pivot" => 2,
+        "formula" => 3,
+        "chart" => 4,
+        "custom_note" => 9,
+        _ => 5
+    };
+
+    // Best-effort section inference so things cluster automatically
+    private static string InferSection(Rule r)
+    {
+        // honor explicit section if author provided one
+        if (!string.IsNullOrWhiteSpace(r.Section)) return r.Section!;
+
+        string t = (r.Type ?? "").ToLowerInvariant();
+        string note = (r.Note ?? "").ToLowerInvariant();
+        string cf = (r.ExpectedFormula ?? r.ExpectedFormulaRegex ?? r.Expected?.ToString() ?? "").ToLowerInvariant();
+        string cell = (r.Cell ?? "").ToUpperInvariant();
+
+        // broad buckets
+        if (t == "chart") return "Charts";
+        if (t == "table") return "Tables";
+        if (t == "format") return "Header / Formatting";
+        if (note.Contains("header")) return "Header / Formatting";
+        if (note.Contains("pivot") || cf.Contains("pivot")) return "Pivot";
+
+        if (t == "formula")
+        {
+            // light Excel-HW heuristics
+            if (cf.Contains("sumif(")) return "SUMIF / category totals";
+            if (cf.StartsWith("=$e$") || cf.Contains("$e$27")) return "Relative frequency";
+            if (cell.StartsWith("G") && !cf.Contains("count")) return "Percent formatting";
+            if (cf.StartsWith("sum(") || cf.Contains(":E17)") || cf.Contains(":L18)")) return "Totals";
+        }
+
+        return "Other";
+    }
+
+
+    // Apply section + stable ordering inside a sheet
+    private static void NormalizeOrder(SheetSpec sheet)
+    {
+        if (sheet?.Checks == null) return;
+        foreach (var r in sheet.Checks)
+            r.Section = InferSection(r);
+
+        sheet.Checks = sheet.Checks
+            .OrderBy(r => r.Section?.ToLowerInvariant())
+            .ThenBy(r => TypeRank(r.Type))
+            .ThenBy(r => A1ToKey(r.Cell).col)
+            .ThenBy(r => A1ToKey(r.Cell).row)
+            .ThenBy(r => r.Note ?? "")
+            .ToList();
+    }
+
 
     // --------------------- CHART RULES (auto from key) ---------------------
     private class AutoChartInfo

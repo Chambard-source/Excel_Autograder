@@ -59,6 +59,10 @@ public class Rule
     [JsonPropertyName("chart")] public ChartSpec? Chart { get; set; }
 
     [JsonPropertyName("table")] public TableSpec? Table { get; set; }
+
+    [JsonPropertyName("section")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Section { get; set; }
 }
 
 

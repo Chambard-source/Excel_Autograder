@@ -7,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Allow large uploads (50 MB here, adjust if needed)
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 500 * 1024 * 1024);
 var app = builder.Build();
+Console.WriteLine($"ContentRootPath = {app.Environment.ContentRootPath}");
+Console.WriteLine($"WebRootPath     = {app.Environment.WebRootPath}");
 
 app.UseDefaultFiles();   // serves wwwroot/index.html
 app.UseStaticFiles();
