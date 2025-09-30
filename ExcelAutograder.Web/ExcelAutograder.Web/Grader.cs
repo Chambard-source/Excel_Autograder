@@ -8,18 +8,20 @@ using System.IO;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 public static class Grader
 {
 
-    private static byte[]? _studentZipBytes;
+    private static readonly AsyncLocal<byte[]?> _zipBytes = new();
 
     private static void EnsureStudentZipBytes(XLWorkbook wbS)
     {
-        if (_studentZipBytes != null) return;
+        if (_zipBytes.Value != null) return;
         using var ms = new MemoryStream();
-        wbS.SaveAs(ms);                 // serialize current student workbook
-        _studentZipBytes = ms.ToArray();
+
+        wbS.SaveAs(ms);
+        _zipBytes.Value = ms.ToArray();
     }
 
     // ---- Entry point used by the web endpoint
@@ -106,9 +108,9 @@ public static class Grader
 
     public static object Run(XLWorkbook wbKey, XLWorkbook wbStudent, Rubric rubric, byte[]? studentZipBytes)
     {
-        _studentZipBytes = studentZipBytes;      // store for conditional-format grader
+        _zipBytes.Value = studentZipBytes;
         try { return Run(wbKey, wbStudent, rubric); }
-        finally { _studentZipBytes = null; }
+        finally { _zipBytes.Value = null; }
     }
 
     // ---- Router
@@ -881,7 +883,7 @@ public static class Grader
         if (spec is null)
             return new CheckResult(SectionIdForSpec(), pts, 0, false, "No chart spec provided");
         EnsureStudentZipBytes(wbS);
-        var zip = _studentZipBytes!;
+        var zip = _zipBytes.Value!;
 
         // Parse ALL charts; only pre-filter by SHEET (not name_like — that's a scored check)
         var bySheet = ParseChartsFromZip(zip);  // sheet -> charts
@@ -1359,12 +1361,12 @@ public static class Grader
         var spec = rule.Cond ?? new ConditionalFormatSpec();
         var sheetName = spec.Sheet ?? wbS.Worksheets.First().Name;
 
-        if (_studentZipBytes is null)
+        if (_zipBytes.Value is null)
             return new CheckResult("conditional_format", pts, 0, false,
                 "Student .xlsx bytes not available to inspect conditional formats");
 
         var expected = DescribeCond(spec);
-        var ok = FindCFInStudentZip_NoClosedXml(_studentZipBytes, sheetName, spec,
+        var ok = FindCFInStudentZip_NoClosedXml(_zipBytes.Value, sheetName, spec,
                                                 out var reason, out var matchedSummary);
 
         var note = ok
@@ -1886,10 +1888,10 @@ public static class Grader
 
     //private static void EnsureStudentZipBytes(XLWorkbook wbS)
     //{
-    //    if (_studentZipBytes != null) return;
+    //    if (_zipBytes.Value != null) return;
     //    using var ms = new MemoryStream();
     //    wbS.SaveAs(ms);                        // serialize current student workbook
-    //    _studentZipBytes = ms.ToArray();       // set bytes so chart/pivot parsers can read OOXML parts
+    //    _zipBytes.Value = ms.ToArray();       // set bytes so chart/pivot parsers can read OOXML parts
     //}
     private static (bool ok, string reason) AnyOfMatch(List<RuleOption> options, Func<RuleOption, (bool ok, string reason)> check)
     {
@@ -2022,27 +2024,6 @@ public static class Grader
             FillRgb = fillRgb
         };
         return DescribeCond(s);
-    }
-
-    private static string DetectChartType(System.Xml.Linq.XElement? plotArea, System.Xml.Linq.XNamespace c)
-    {
-        if (plotArea == null) return "";
-        if (plotArea.Element(c + "bar3DChart") != null)
-            return string.Equals(plotArea.Element(c + "bar3DChart")?.Element(c + "barDir")?.Attribute("val")?.Value, "col", StringComparison.OrdinalIgnoreCase) ? "column3D" : "bar3D";
-        var bar = plotArea.Element(c + "barChart");
-        if (bar != null)
-            return string.Equals(bar.Element(c + "barDir")?.Attribute("val")?.Value, "col", StringComparison.OrdinalIgnoreCase) ? "column" : "bar";
-        if (plotArea.Element(c + "line3DChart") != null) return "line3D";
-        if (plotArea.Element(c + "area3DChart") != null) return "area3D";
-        if (plotArea.Element(c + "pie3DChart") != null) return "pie3D";
-        if (plotArea.Element(c + "pieChart") != null) return "pie";
-        if (plotArea.Element(c + "areaChart") != null) return "area";
-        if (plotArea.Element(c + "lineChart") != null) return "line";
-        if (plotArea.Element(c + "scatterChart") != null) return "scatter";
-        if (plotArea.Element(c + "bubbleChart") != null) return "bubble";
-        if (plotArea.Element(c + "radarChart") != null) return "radar";
-        if (plotArea.Element(c + "stockChart") != null) return "stock";
-        return "";
     }
 
     private static string? GetExpectedLiteral(Rule rr)

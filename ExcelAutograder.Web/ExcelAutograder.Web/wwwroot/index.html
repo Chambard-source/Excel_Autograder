@@ -1058,11 +1058,11 @@
                     for (const [r] of arr) {
                         const id = r.__id; // set by ensureRuleIds()
                         const row = el('div', 'rule-row', `
-                                                                <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
-                                                                <div class="mono">${esc(r.cell || '(range)')}</div>
-                                                                <div class="mono">${esc(r.type || '')}</div>
-                                                                <div>${esc(r.note || '')}</div>
-                                                            `);
+                                                            <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
+                                                            <div class="mono">${esc(r.cell || '(range)')}</div>
+                                                            <div class="mono">${esc(r.type || '')}</div>
+                                                            <div>${esc(r.note || '')}</div>
+                                                        `);
                         row.querySelector('.rule-select').onchange = (ev) => {
                             if (ev.target.checked) UI.selected.add(id); else UI.selected.delete(id);
                         };
