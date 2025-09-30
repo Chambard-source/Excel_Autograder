@@ -264,5 +264,103 @@ app.MapPost("/api/auto-rubric", async (HttpRequest req) =>
     }
 });
 
+app.MapPost("/api/key/sheets", async (HttpRequest req) =>
+{
+    if (!req.HasFormContentType) return Results.BadRequest(new { error = "Expected multipart/form-data" });
+    var form = await req.ReadFormAsync();
+    var keyFile = form.Files.GetFile("key");
+    if (keyFile is null) return Results.BadRequest(new { error = "Upload key workbook as 'key'" });
+
+    using var ms = new MemoryStream();
+    using (var src = keyFile.OpenReadStream()) { await src.CopyToAsync(ms); }
+    var keyBytes = ms.ToArray();
+
+    using var wbKey = new XLWorkbook(new MemoryStream(keyBytes));
+    var names = wbKey.Worksheets.Select(w => w.Name).ToList();
+    return Results.Json(names);
+});
+
+// Build rubric from either flat ranges or named sections + ranges
+app.MapPost("/api/rubric/from-ranges", async (HttpRequest req) =>
+{
+    if (!req.HasFormContentType)
+        return Results.BadRequest(new { error = "Expected multipart/form-data" });
+
+    var form = await req.ReadFormAsync();
+    var key = form.Files.GetFile("key");
+    if (key is null)
+        return Results.BadRequest(new { error = "Missing 'key' file" });
+
+    // read workbook bytes once (also used for ZIP artifact scan)
+    byte[] keyBytes;
+    using (var ms = new MemoryStream())
+    {
+        await key.CopyToAsync(ms);
+        keyBytes = ms.ToArray();
+    }
+
+    using var wbKey = new ClosedXML.Excel.XLWorkbook(new MemoryStream(keyBytes));
+
+    var includeArtifacts = string.Equals(form["include_artifacts"], "true", StringComparison.OrdinalIgnoreCase);
+    double.TryParse(form["total"], out var targetTotal);
+
+    // Accept either ranges_json or sections_json
+    var rangesJson = form["ranges_json"].ToString();
+    var sectionsJson = form["sections_json"].ToString();
+
+    try
+    {
+        if (!string.IsNullOrWhiteSpace(sectionsJson))
+        {
+            // { "SheetA": [ { "name": "Drink Types", "ranges": ["D8:D17"] }, ... ] }
+            var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            var dto = System.Text.Json.JsonSerializer.Deserialize<
+                Dictionary<string, List<SectionDto>>
+            >(sectionsJson, opts) ?? new();
+
+            var sectionsPerSheet =
+                                dto.ToDictionary(
+                                    kv => kv.Key,
+                                    kv => kv.Value
+                                          .Select(s => (section: (s.Name ?? s.Section ?? "Section"), ranges: (s.Ranges ?? new List<string>())))
+                                          .ToList(),
+                                    StringComparer.OrdinalIgnoreCase);
+
+            var rub = RubricAuto.BuildFromKeyRanges(wbKey, sectionsPerSheet, includeArtifacts, targetTotal, keyBytes);
+            return Results.Json(rub);
+        }
+        else if (!string.IsNullOrWhiteSpace(rangesJson))
+        {
+            // { "SheetA": ["A2:B20","E8", ...] }
+            var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var ranges = System.Text.Json.JsonSerializer.Deserialize<
+                Dictionary<string, List<string>>
+            >(rangesJson, opts) ?? new();
+
+            var rub = RubricAuto.BuildFromKeyRanges(wbKey, ranges, includeArtifacts, targetTotal, keyBytes);
+            return Results.Json(rub);
+        }
+        else
+        {
+            return Results.BadRequest(new { error = "Provide either ranges_json or sections_json" });
+        }
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+});
+
 
 app.Run();
+
+
+// at bottom of Program.cs (after app.Run())
+public sealed class SectionDto
+{
+    public string? Name { get; set; }
+    public string? Section { get; set; }  // allow "section" from JSON too
+    public List<string>? Ranges { get; set; }
+    public string ResolvedName => string.IsNullOrWhiteSpace(Name) ? (Section ?? "Section") : Name;
+}

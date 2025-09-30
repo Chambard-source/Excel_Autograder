@@ -73,6 +73,12 @@
             padding: 16px;
         }
 
+        .builder-main {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
         .card, .builder-card, #resultsCard {
             width: 100%;
             max-width: 100%;
@@ -220,7 +226,11 @@
             width: 100%;
         }
 
-            .builder-card.collapsed #builderBody {
+            .builder-card.collapsed .builder-grid {
+                display: none;
+            }
+
+            .builder-card.collapsed .hr {
                 display: none;
             }
 
@@ -768,84 +778,118 @@
 
             <!-- Builder content + sticky right rail -->
             <div class="builder-grid">
-                <!-- LEFT: builder content (unchanged) -->
-                <div id="builderBody">
-                    <div class="grid-2">
-                        <div class="stack">
-                            <label>Generate from Key (uses the Key file chosen above)</label>
-                            <div class="hstack">
-                                <input id="sheetHint" type="text" placeholder="e.g., 'Scores' or 'Summary' (optional)" />
-                                <label class="checkbox"><input type="checkbox" id="allSheets" /> All sheets</label>
-                                <input id="totalPoints" type="number" step="0.25" min="0" placeholder="Total Points (e.g., 5 or 10)" style="width:180px" />
-                                <button id="btnGenerate" class="primary">Generate</button>
-                                <button id="btnClear" class="danger">Clear Builder</button>
+                <!-- LEFT column: wrap everything in one container -->
+                <div class="builder-main">
+                    <div id="builderBody">
+                        <!-- your existing top controls -->
+                        <div class="grid-2">
+                            <div class="stack">
+                                <label>Generate from Key (uses the Key file chosen above)</label>
+                                <div class="hstack">
+                                    <input id="sheetHint" type="text" placeholder="e.g., 'Scores' or 'Summary' (optional)" />
+                                    <label class="checkbox"><input type="checkbox" id="allSheets" /> All sheets</label>
+                                    <input id="totalPoints" type="number" step="0.25" min="0" placeholder="Total Points (e.g., 5 or 10)" style="width:180px" />
+                                    <button id="btnGenerate" class="primary">Generate</button>
+                                    <button id="btnClear" class="danger">Clear Builder</button>
+                                </div>
+                                <div class="tiny muted">Generate → replaces the builder entirely with the auto-rubric from your key. No merge, no leftovers.</div>
                             </div>
-                            <div class="tiny muted">Generate → replaces the builder entirely with the auto-rubric from your key. No merge, no leftovers.</div>
+
+                            <div class="stack">
+                                <label>Report options</label>
+                                <div class="hstack">
+                                    <label class="checkbox"><input type="checkbox" id="optPassFail" checked /> Include Pass/Fail</label>
+                                    <label class="checkbox"><input type="checkbox" id="optComments" checked /> Include Comments</label>
+                                    <button id="btnGenerateJson" class="right">Generate JSON (from builder)</button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="stack">
-                            <label>Report options</label>
-                            <div class="hstack">
-                                <label class="checkbox"><input type="checkbox" id="optPassFail" checked /> Include Pass/Fail</label>
-                                <label class="checkbox"><input type="checkbox" id="optComments" checked /> Include Comments</label>
-                                <button id="btnGenerateJson" class="right">Generate JSON (from builder)</button>
-                            </div>
+                        <div class="hr"></div>
+
+                        <div class="hstack">
+                            <button id="btnAddSheet" class="ghost">+ Add Sheet</button>
+                            <span class="tiny pill">Tip: use “Duplicate” to clone a whole sheet or a single rule.</span>
                         </div>
+
+                        <div id="sheets" class="stack"></div>
                     </div>
 
                     <div class="hr"></div>
 
-                    <div class="hstack">
-                        <button id="btnAddSheet" class="ghost">+ Add Sheet</button>
-                        <span class="tiny pill">Tip: use “Duplicate” to clone a whole sheet or a single rule.</span>
-                    </div>
+                    <!-- Build by Sections & Ranges (multi-sheet) -->
+                    <div class="stack">
+                        <label>
+                            Build by Sections & Ranges
+                            <small>(add sections + A1 ranges for one or more sheets)</small>
+                        </label>
 
-                    <div id="sheets" class="stack"></div>
-                </div>
-
-                <!-- RIGHT: sticky rail with bulk actions (single instance, same IDs) -->
-                <aside class="rules-rail">
-                    <div class="card">
-                        <div class="tiny muted" style="margin-bottom:6px;">Bulk actions</div>
-                        <div id="rulesToolbar" class="stack">
-                            <label class="checkbox"><input type="checkbox" id="groupBySection" checked> Group by Section</label>
-                            <label class="tiny muted">Sort by</label>
-                            <select id="sortBy"> … </select>
-                            <label class="tiny muted">Move to section</label>
-                            <select id="moveToSection">
-                                <option value="">Move selected to section…</option>
-                                <option value="__new__">+ New section…</option>
-                            </select>
-                            <button id="btnMoveToSection" class="ghost">Move</button>
-                            <button id="btnClearSelection" class="ghost">Clear selection</button>
+                        <!-- top-row controls that apply to the whole build -->
+                        <div class="hstack" style="gap:10px;align-items:center;flex-wrap:wrap;">
+                            <label class="checkbox">
+                                <input id="includeArtifacts" type="checkbox" checked />
+                                Capture charts / CF / tables
+                            </label>
+                            <input id="rangeTotalPoints" type="number" step="0.25" min="0"
+                                   placeholder="Total Points (optional)" style="width:180px" />
                         </div>
 
-                        <div class="hstack" style="gap:8px; margin:8px 0;">
-                            <button id="btnExpandSections" class="ghost">Expand sections</button>
-                            <button id="btnCollapseSections" class="ghost">Collapse sections</button>
-                        </div>
-
-                        <hr class="hr" />
-
-                        <hr class="hr" />
-                        <div class="tiny muted" style="margin:8px 0 4px;">Section order (grading sequence)</div>
-
-                        <div id="sectionOrder" class="stack" style="margin-bottom:8px;"></div>
+                        <!-- groups of sections per sheet -->
+                        <div id="rangeGroups" class="stack" style="gap:16px;margin-top:8px;"></div>
 
                         <div class="hstack" style="gap:8px;">
-                            <select id="sectionOrderPicker" style="flex:1 1 auto;"></select>
-                            <button id="btnOrderAdd" class="ghost">Add</button>
+                            <button id="btnAddRangeSheet" class="ghost">+ Add Sheet</button>
+                            <button id="btnBuildFromRanges" class="primary">Build from Sections</button>
                         </div>
 
-                        <button id="btnOrderClear" class="ghost" style="margin-top:6px;">Clear order</button>
-
-                        <hr class="hr" />
-                        <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
-                        <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
-                        <div id="railRules" class="stack"></div>
+                        <div class="tiny muted">
+                            Tip: each row becomes a <b>section</b> in the rubric. Put comma-separated A1 ranges per row.
+                        </div>
                     </div>
-                </aside>
-            </div>
+                </div>
+
+                    <!-- RIGHT: sticky rail with bulk actions (single instance, same IDs) -->
+                    <aside class="rules-rail">
+                        <div class="card">
+                            <div class="tiny muted" style="margin-bottom:6px;">Bulk actions</div>
+                            <div id="rulesToolbar" class="stack">
+                                <label class="checkbox"><input type="checkbox" id="groupBySection" checked> Group by Section</label>
+                                <label class="tiny muted">Sort by</label>
+                                <select id="sortBy"> … </select>
+                                <label class="tiny muted">Move to section</label>
+                                <select id="moveToSection">
+                                    <option value="">Move selected to section…</option>
+                                    <option value="__new__">+ New section…</option>
+                                </select>
+                                <button id="btnMoveToSection" class="ghost">Move</button>
+                                <button id="btnClearSelection" class="ghost">Clear selection</button>
+                            </div>
+
+                            <div class="hstack" style="gap:8px; margin:8px 0;">
+                                <button id="btnExpandSections" class="ghost">Expand sections</button>
+                                <button id="btnCollapseSections" class="ghost">Collapse sections</button>
+                            </div>
+
+                            <hr class="hr" />
+
+                            <hr class="hr" />
+                            <div class="tiny muted" style="margin:8px 0 4px;">Section order (grading sequence)</div>
+
+                            <div id="sectionOrder" class="stack" style="margin-bottom:8px;"></div>
+
+                            <div class="hstack" style="gap:8px;">
+                                <select id="sectionOrderPicker" style="flex:1 1 auto;"></select>
+                                <button id="btnOrderAdd" class="ghost">Add</button>
+                            </div>
+
+                            <button id="btnOrderClear" class="ghost" style="margin-top:6px;">Clear order</button>
+
+                            <hr class="hr" />
+                            <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
+                            <div id="railRules" class="stack"></div>
+                        </div>
+                    </aside>
+                </div>
 
             <!-- RESULTS -->
             <div class="card stack" id="resultsCard" style="display:none">
@@ -1149,10 +1193,29 @@
         });
 
         const elSort = document.getElementById('sortBy');
-        if (elSort) elSort.addEventListener('change', (e) => {
-            UI.sortBy = e.target.value;
-            render();
-        });
+        if (elSort) {
+            elSort.innerHTML = '';
+            [
+                ['section-cell', 'Section ▸ Cell'],
+                ['cell', 'Cell (A→Z)'],
+                ['type', 'Type'],
+                ['section-type-cell', 'Section ▸ Type ▸ Cell']
+            ].forEach(([val, label]) => {
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = label;
+                elSort.appendChild(opt);
+            });
+
+            // show the current setting
+            elSort.value = UI.sortBy || 'section-cell';
+
+            elSort.addEventListener('change', (e) => {
+                UI.sortBy = e.target.value;
+                render();
+            });
+        }
+
 
         const elMove = document.getElementById('bulkMoveBtn');
         if (elMove) elMove.addEventListener('click', () => {
@@ -2390,7 +2453,7 @@
                 if (el) el.classList.toggle('hidden', !!on);
             });
 
-            if (builderToggle) builderToggle.textContent = on ? 'Show builder' : 'Hide builder';
+            if (builderToggle) builderToggle.textContent = on ? 'Show Builder' : 'Hide Builder';
             try { localStorage.setItem('builderCollapsed', on ? '1' : '0'); } catch { }
         }
 
@@ -2765,6 +2828,178 @@
 
             document.addEventListener('DOMContentLoaded', () => {
                 try { refreshOrderUI(); } catch (e) { }
+            });
+        })();
+
+        (function () {
+            // --- elements (support either id your page uses) ---
+            const keyInput = document.getElementById('keyFile') || document.getElementById('key');
+            const includeArtifacts = document.getElementById('includeArtifacts');
+            const rangeTotalPoints = document.getElementById('rangeTotalPoints');
+            const btnBuildFromRanges = document.getElementById('btnBuildFromRanges');
+
+            // Single-sheet panel elements (legacy)
+            const rangeSheet = document.getElementById('rangeSheet');
+            const rangeRows = document.getElementById('rangeRows');
+            const btnAddRangeRow = document.getElementById('btnAddRangeRow');
+
+            // Multi-sheet panel elements (new)
+            const groupsEl = document.getElementById('rangeGroups');
+            const btnAddRangeSheet = document.getElementById('btnAddRangeSheet');
+
+            // --- common helpers ---
+            let sheetNames = [];
+            async function loadSheetNames() {
+                try {
+                    const file = keyInput?.files?.[0];
+                    if (!file) return [];
+                    const fd = new FormData();
+                    fd.append('key', file);
+                    const resp = await fetch('/api/key/sheets', { method: 'POST', body: fd });
+                    if (!resp.ok) return [];
+                    sheetNames = await resp.json();
+                    return sheetNames;
+                } catch { return []; }
+            }
+
+            function a1Row(name = '', ranges = '') {
+                const row = document.createElement('div');
+                row.className = 'hstack';
+                row.style.gap = '8px';
+                row.innerHTML = `
+                                  <input class="sectionName" type="text" placeholder="Section name (e.g., Totals)" style="min-width:220px" value="${name}">
+                                  <input class="sectionRanges" type="text" placeholder="A1 ranges (comma-separated, e.g., A2:B20, E8:E18)" style="min-width:360px" value="${ranges}">
+                                  <button class="ghost removeRowBtn" type="button">Remove</button>
+                                `;
+                row.querySelector('.removeRowBtn').onclick = () => row.remove();
+                return row;
+            }
+
+            // --- SINGLE-SHEET MODE (if #rangeSheet exists) ---
+            if (rangeSheet && rangeRows) {
+                // seed one row
+                if (rangeRows.children.length === 0) rangeRows.appendChild(a1Row());
+                btnAddRangeRow?.addEventListener('click', () => rangeRows.appendChild(a1Row()));
+
+                keyInput?.addEventListener('change', async () => {
+                    rangeSheet.innerHTML = `<option value="">Select a sheet…</option>`;
+                    const names = await loadSheetNames();
+                    for (const n of names) rangeSheet.appendChild(new Option(n, n));
+                });
+            }
+
+            // --- MULTI-SHEET MODE (if #rangeGroups exists) ---
+            function addGroup(defaultSheet) {
+                const g = document.createElement('div');
+                g.className = 'card stack';
+                g.style.padding = '12px';
+                g.innerHTML = `
+                              <div class="hstack" style="gap:8px;align-items:center;flex-wrap:wrap;">
+                                <select class="sheetSel" style="min-width:220px"></select>
+                                <button class="ghost addRowBtn" type="button">+ Add Section + Ranges</button>
+                                <button class="danger removeGroupBtn" type="button" style="margin-left:auto">Remove sheet</button>
+                              </div>
+                              <div class="stack rows" style="gap:8px;margin-top:8px;"></div>
+                            `;
+                const sheetSel = g.querySelector('.sheetSel');
+                const rowsEl = g.querySelector('.rows');
+
+                for (const name of sheetNames) sheetSel.appendChild(new Option(name, name));
+                if (defaultSheet && sheetNames.includes(defaultSheet)) sheetSel.value = defaultSheet;
+
+                function addRow(n = '', r = '') { rowsEl.appendChild(a1Row(n, r)); }
+                g.querySelector('.addRowBtn').onclick = () => addRow();
+                g.querySelector('.removeGroupBtn').onclick = () => g.remove();
+                addRow();
+
+                groupsEl.appendChild(g);
+            }
+
+            if (groupsEl && btnAddRangeSheet) {
+                btnAddRangeSheet.addEventListener('click', async () => {
+                    if (sheetNames.length === 0) await loadSheetNames();
+                    if (sheetNames.length === 0) return alert('Choose a key workbook first.');
+                    addGroup(sheetNames[0]);
+                });
+
+                keyInput?.addEventListener('change', async () => { await loadSheetNames(); });
+            }
+
+            // --- Build button (works for either mode) ---
+            btnBuildFromRanges?.addEventListener('click', async () => {
+                const file = keyInput?.files?.[0];
+                if (!file) return alert('Choose a key workbook first.');
+
+                // Compose sections_json:
+                //  - multi-sheet: from groups
+                //  - single-sheet: from drop-down + rows
+                const payload = {};
+
+                if (groupsEl && groupsEl.children.length > 0) {
+                    // multi-sheet
+                    for (const g of groupsEl.children) {
+                        const sheet = (g.querySelector('.sheetSel')?.value || '').trim();
+                        if (!sheet) continue;
+                        const rows = Array.from(g.querySelectorAll('.rows .hstack'));
+                        const sections = [];
+                        for (const r of rows) {
+                            const name = (r.querySelector('.sectionName')?.value || '').trim() || 'Section';
+                            const rangesText = (r.querySelector('.sectionRanges')?.value || '').trim();
+                            if (!rangesText) continue;
+                            const ranges = rangesText.split(',').map(s => s.trim()).filter(Boolean);
+                            if (ranges.length) sections.push({ name, ranges });
+                        }
+                        if (sections.length) payload[sheet] = sections;
+                    }
+                } else if (rangeSheet && rangeRows) {
+                    // single-sheet
+                    const sheet = (rangeSheet.value || '').trim();
+                    if (!sheet) return alert('Pick a sheet.');
+                    const rows = Array.from(rangeRows.querySelectorAll('.hstack'));
+                    const sections = [];
+                    for (const r of rows) {
+                        const name = (r.querySelector('.sectionName')?.value || '').trim() || 'Section';
+                        const rangesText = (r.querySelector('.sectionRanges')?.value || '').trim();
+                        if (!rangesText) continue;
+                        const ranges = rangesText.split(',').map(s => s.trim()).filter(Boolean);
+                        if (ranges.length) sections.push({ name, ranges });
+                    }
+                    if (!sections.length) return alert('Add at least one row with ranges.');
+                    payload[sheet] = sections;
+                } else {
+                    return alert('Add at least one sheet/section.');
+                }
+
+                const fd = new FormData();
+                fd.append('key', file);
+                fd.append('sections_json', JSON.stringify(payload));
+                if (includeArtifacts?.checked) fd.append('include_artifacts', 'true');
+                if (rangeTotalPoints?.value) fd.append('total', rangeTotalPoints.value);
+
+                btnBuildFromRanges.disabled = true;
+                const orig = btnBuildFromRanges.textContent;
+                btnBuildFromRanges.textContent = 'Building…';
+                try {
+                    const resp = await fetch('/api/rubric/from-ranges', { method: 'POST', body: fd });
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err.error || resp.statusText);
+                    }
+                    const rub = await resp.json();
+                    if (window.renderBuilderFromRubric) {
+                        window.renderBuilderFromRubric(rub);
+                    } else {
+                        window.rubric = rub;
+                        if (window.render) render();
+                        if (window.refreshJsonPreview) refreshJsonPreview();
+                    }
+                } catch (e) {
+                    alert('Failed to build from sections: ' + e.message);
+                    console.error(e);
+                } finally {
+                    btnBuildFromRanges.disabled = false;
+                    btnBuildFromRanges.textContent = orig;
+                }
             });
         })();
     </script>
