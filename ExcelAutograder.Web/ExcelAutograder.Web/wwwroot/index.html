@@ -2831,7 +2831,7 @@
             });
         })();
 
-        (function () {
+        window.addEventListener('DOMContentLoaded', function () {
             // --- elements (support either id your page uses) ---
             const keyInput = document.getElementById('keyFile') || document.getElementById('key');
             const includeArtifacts = document.getElementById('includeArtifacts');
@@ -2947,7 +2947,7 @@
                             const rangesText = (r.querySelector('.sectionRanges')?.value || '').trim();
                             if (!rangesText) continue;
                             const ranges = rangesText.split(',').map(s => s.trim()).filter(Boolean);
-                            if (ranges.length) sections.push({ name, ranges });
+                            if (ranges.length) sections.push({ section: name, ranges });
                         }
                         if (sections.length) payload[sheet] = sections;
                     }
@@ -2962,7 +2962,7 @@
                         const rangesText = (r.querySelector('.sectionRanges')?.value || '').trim();
                         if (!rangesText) continue;
                         const ranges = rangesText.split(',').map(s => s.trim()).filter(Boolean);
-                        if (ranges.length) sections.push({ name, ranges });
+                        if (ranges.length) sections.push({ section: name, ranges });
                     }
                     if (!sections.length) return alert('Add at least one row with ranges.');
                     payload[sheet] = sections;
@@ -2989,7 +2989,7 @@
                     if (window.renderBuilderFromRubric) {
                         window.renderBuilderFromRubric(rub);
                     } else {
-                        window.rubric = rub;
+                        rubric = rub;
                         if (window.render) render();
                         if (window.refreshJsonPreview) refreshJsonPreview();
                     }
@@ -3001,7 +3001,7 @@
                     btnBuildFromRanges.textContent = orig;
                 }
             });
-        })();
+        });
     </script>
 
 </body>
