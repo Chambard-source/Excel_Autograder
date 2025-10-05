@@ -4,15 +4,23 @@ using ClosedXML.Excel;
 public static partial class RubricAuto
 {
     public static Rubric GenerateFromKey(XLWorkbook wbKey, string? sheetHint, bool allSheets)
-        => BuildFromKey(wbKey, sheetHint, allSheets, 5.0, keyZipBytes: null);
+    {
+        using var ms = new MemoryStream();
+        wbKey.SaveAs(ms);
+        return BuildFromKey(wbKey, sheetHint, allSheets, 5.0, keyZipBytes: ms.ToArray());
+    }
 
     public static void ScalePoints(Rubric rub, double target) => RescalePoints(rub, target);
 
     public static Rubric BuildFromKey(XLWorkbook wbKey, string? sheetHint, bool allSheets, double targetTotal)
-        => BuildFromKey(wbKey, sheetHint, allSheets, targetTotal, keyZipBytes: null);
+    {
+        using var ms = new MemoryStream();
+        wbKey.SaveAs(ms);
+        return BuildFromKey(wbKey, sheetHint, allSheets, targetTotal, keyZipBytes: ms.ToArray());
+    }
 
     public static Rubric BuildFromKey(
-        XLWorkbook wbKey, string? sheetHint, bool allSheets, double targetTotal, byte[]? keyZipBytes)
+            XLWorkbook wbKey, string? sheetHint, bool allSheets, double targetTotal, byte[]? keyZipBytes)
     {
         var zipPivots = keyZipBytes is null ? new(StringComparer.OrdinalIgnoreCase) : ExtractPivotRulesFromZip(keyZipBytes);
         var zipCF = keyZipBytes is null ? new(StringComparer.OrdinalIgnoreCase) : ExtractConditionalRulesFromZip(keyZipBytes);
@@ -183,6 +191,89 @@ public static partial class RubricAuto
                         if (HasAbsoluteRef(f)) rule.RequireAbsolute = true;
                         checks.Add(rule);
                     }
+                }
+
+                // (4) Excel Tables that intersect the selected ranges
+                foreach (var tbl in ws.Tables)
+                {
+                    var tAddr = tbl.RangeAddress;
+
+                    // Any intersection with the user-selected ranges?
+                    bool intersects = addrs.Any(ra =>
+                    {
+                        var a1 = ra.FirstAddress; var a2 = ra.LastAddress;
+                        var b1 = tAddr.FirstAddress; var b2 = tAddr.LastAddress;
+                        return !(a2.RowNumber < b1.RowNumber ||
+                                 b2.RowNumber < a1.RowNumber ||
+                                 a2.ColumnNumber < b1.ColumnNumber ||
+                                 b2.ColumnNumber < a1.ColumnNumber);
+                    });
+                    if (!intersects) continue;
+
+                    // Avoid duplicates if another section already added the same table
+                    bool already = checks.Any(c => c.Type == "table" &&
+                                                   string.Equals(c.Table?.NameLike, tbl.Name, StringComparison.OrdinalIgnoreCase));
+                    if (already) continue;
+
+                    // Columns (headers)
+                    var cols = tbl.Fields
+                        .Select(f => (f.Name ?? string.Empty).Trim())
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .ToList();
+                    if (cols.Count == 0) continue;
+
+                    var fullRangeA1 = tAddr.ToStringRelative();
+                    var body = tbl.DataRange;
+                    int bodyRows = body?.RowCount() ?? 0;
+                    int bodyCols = body?.ColumnCount() ?? 0;
+
+                    var bodyVals = new List<List<string>>();
+                    if (body != null)
+                    {
+                        foreach (var r in body.Rows())
+                        {
+                            var rowVals = new List<string>();
+                            foreach (var c in r.Cells())
+                                rowVals.Add(c.GetFormattedString() ?? string.Empty);
+                            bodyVals.Add(rowVals);
+                        }
+                    }
+
+                    checks.Add(new Rule
+                    {
+                        Type = "table",
+                        Points = 1.0,
+                        Section = sectionName,
+                        Note = $"Table '{tbl.Name}' columns",
+                        Table = new TableSpec
+                        {
+                            Sheet = ws.Name,
+                            NameLike = tbl.Name,
+
+                            // headers
+                            Columns = cols,
+                            RequireOrder = false,
+
+                            // location & size
+                            RangeRef = fullRangeA1,
+                            Rows = bodyRows,
+                            Cols = bodyCols,
+
+                            // defaults (UI can toggle these)
+                            AllowExtraRows = null,
+                            AllowExtraCols = null,
+
+                            // captured data so the UI can show it
+                            BodyMatch = null,
+                            BodyOrderMatters = null,
+                            BodyCaseSensitive = null,
+                            BodyTrim = true,
+                            BodyRows = bodyVals,
+
+                            // empty by default; UI can add “must contain” rows later
+                            ContainsRows = new List<Dictionary<string, string>>()
+                        }
+                    });
                 }
             }
 

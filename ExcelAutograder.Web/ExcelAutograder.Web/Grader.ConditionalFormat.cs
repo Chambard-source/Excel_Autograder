@@ -20,6 +20,7 @@ public static partial class Grader
 
     private static CheckResult GradeConditionalFormat(Rule rule, XLWorkbook wbS) 
     {
+        EnsureStudentZipBytes(wbS);
         var pts = rule.Points;
         var spec = rule.Cond ?? new ConditionalFormatSpec();
         var sheetName = spec.Sheet ?? wbS.Worksheets.First().Name;

@@ -1,2 +1,2 @@
-wwwroot\index.html
 wwwroot\rubric_example.json
+wwwroot\index.html

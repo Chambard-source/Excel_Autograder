@@ -530,6 +530,125 @@ public static partial class RubricAuto
             }
         }
 
+        // --- TABLE rules for any table intersecting the selected ranges ---
+        {
+            // Build a fast list of range objects for intersection checks
+            var selRects = ranges
+                .Select(ra => ws.Range(ra))
+                .ToList();
+
+            foreach (var tbl in ws.Tables)
+            {
+                var tRange = ws.Range(tbl.RangeAddress);
+
+                // include table only if it touches any selected range
+                bool intersects = selRects.Any(r => r.Intersects(tRange));
+                if (!intersects) continue;
+
+                // header names
+                var cols = tbl.Fields
+                    .Select(f => (f.Name ?? string.Empty).Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                if (cols.Count == 0) continue;
+
+                // full A1 (header + body)
+                var fullRangeA1 = tbl.RangeAddress.ToStringRelative();
+
+                // body dims + optional sample (safe)
+                var body = tbl.DataRange;
+                int bodyRows = body?.RowCount() ?? 0;
+                int bodyCols = body?.ColumnCount() ?? 0;
+
+                // Avoid duplicates if a same table rule already added
+                bool already =
+                    checks.Any(c => c.Type == "table" &&
+                                    (c.Table?.NameLike ?? "").Equals(tbl.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (!already)
+                {
+                    checks.Add(new Rule
+                    {
+                        Type = "table",
+                        Points = 1.0,
+                        Section = sectionName, // preserve section label if provided
+                        Note = $"Table '{tbl.Name}' columns",
+                        Table = new TableSpec
+                        {
+                            Sheet = ws.Name,
+                            NameLike = tbl.Name,
+
+                            // columns (order not required by default)
+                            Columns = cols,
+                            RequireOrder = false,
+
+                            // dimensions + location (helps grader verify)
+                            RangeRef = fullRangeA1,
+                            Rows = bodyRows,
+                            Cols = bodyCols,
+
+                            // students can have extra rows/cols as they add data
+                            AllowExtraRows = true,
+                            AllowExtraCols = true
+                        }
+                    });
+                }
+            }
+        }
+
+        // --- PIVOT rules on this sheet (optional: keep only those that touch selected ranges) ---
+        {
+            // (A) if you want to keep *all* pivots on this sheet in this section:
+            var pivotsObj = ws.GetType().GetProperty("PivotTables")?.GetValue(ws);
+            foreach (var pt in AsEnum(pivotsObj))
+            {
+                var ptName = GetStrProp(pt, "Name") ?? ws.Name + " Pivot";
+
+                // Collect layout, same as BuildPivotRulesForSheet(...)
+                var rows = GetEnumProp(pt, "RowLabels")
+                    .Select(f => FirstNonEmpty(GetStrProp(f, "SourceName"), GetStrProp(f, "CustomName"), GetStrProp(f, "Name")))
+                    .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                var cols = GetEnumProp(pt, "ColumnLabels")
+                    .Select(f => FirstNonEmpty(GetStrProp(f, "SourceName"), GetStrProp(f, "CustomName"), GetStrProp(f, "Name")))
+                    .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                var filters = GetEnumProp(pt, "ReportFilters")
+                    .Select(f => FirstNonEmpty(GetStrProp(f, "SourceName"), GetStrProp(f, "CustomName"), GetStrProp(f, "Name")))
+                    .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                var values = new List<PivotValueSpec>();
+                foreach (var v in GetEnumProp(pt, "Values"))
+                {
+                    var field = FirstNonEmpty(GetStrProp(v, "SourceName"), GetStrProp(v, "CustomName"), GetStrProp(v, "Name"));
+                    if (string.IsNullOrWhiteSpace(field)) continue;
+                    var sf = GetStrProp(v, "SummaryFormula") ?? GetStrProp(v, "Function") ?? "";
+                    values.Add(new PivotValueSpec { Field = field, Agg = NormAgg(sf) });
+                }
+
+                if (rows.Count == 0 && cols.Count == 0 && filters.Count == 0 && values.Count == 0)
+                    continue;
+
+                checks.Add(new Rule
+                {
+                    Type = "pivot_layout",
+                    Points = 1.5,
+                    Section = sectionName,                  // put it under the user’s section
+                    Note = $"Pivot '{ptName}' layout",
+                    Pivot = new PivotSpec
+                    {
+                        Sheet = ws.Name,
+                        TableNameLike = ptName,
+                        Rows = rows.Count > 0 ? rows : null,
+                        Columns = cols.Count > 0 ? cols : null,
+                        Filters = filters.Count > 0 ? filters : null,
+                        Values = values.Count > 0 ? values : null
+                    }
+                });
+            }
+        }
+
+
         return checks;
     }
 }

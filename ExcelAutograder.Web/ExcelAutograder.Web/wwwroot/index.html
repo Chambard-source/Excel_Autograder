@@ -65,6 +65,22 @@
             }
         }
 
+        .result-section-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: .5rem .75rem;
+            font-weight: 600;
+            background: var(--panel, #0e0f12);
+            border-top: 1px solid rgba(255,255,255,.08);
+        }
+
+        .result-section-body {
+            max-height: 60vh; /* adjust to taste */
+            overflow: auto;
+            padding: .25rem .5rem 1rem;
+        }
+
         /* ---------- Cards ---------- */
         .card {
             background: var(--panel);
@@ -848,48 +864,48 @@
                     </div>
                 </div>
 
-                    <!-- RIGHT: sticky rail with bulk actions (single instance, same IDs) -->
-                    <aside class="rules-rail">
-                        <div class="card">
-                            <div class="tiny muted" style="margin-bottom:6px;">Bulk actions</div>
-                            <div id="rulesToolbar" class="stack">
-                                <label class="checkbox"><input type="checkbox" id="groupBySection" checked> Group by Section</label>
-                                <label class="tiny muted">Sort by</label>
-                                <select id="sortBy"> … </select>
-                                <label class="tiny muted">Move to section</label>
-                                <select id="moveToSection">
-                                    <option value="">Move selected to section…</option>
-                                    <option value="__new__">+ New section…</option>
-                                </select>
-                                <button id="btnMoveToSection" class="ghost">Move</button>
-                                <button id="btnClearSelection" class="ghost">Clear selection</button>
-                            </div>
-
-                            <div class="hstack" style="gap:8px; margin:8px 0;">
-                                <button id="btnExpandSections" class="ghost">Expand sections</button>
-                                <button id="btnCollapseSections" class="ghost">Collapse sections</button>
-                            </div>
-
-                            <hr class="hr" />
-
-                            <hr class="hr" />
-                            <div class="tiny muted" style="margin:8px 0 4px;">Section order (grading sequence)</div>
-
-                            <div id="sectionOrder" class="stack" style="margin-bottom:8px;"></div>
-
-                            <div class="hstack" style="gap:8px;">
-                                <select id="sectionOrderPicker" style="flex:1 1 auto;"></select>
-                                <button id="btnOrderAdd" class="ghost">Add</button>
-                            </div>
-
-                            <button id="btnOrderClear" class="ghost" style="margin-top:6px;">Clear order</button>
-
-                            <hr class="hr" />
-                            <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
-                            <div id="railRules" class="stack"></div>
+                <!-- RIGHT: sticky rail with bulk actions (single instance, same IDs) -->
+                <aside class="rules-rail">
+                    <div class="card">
+                        <div class="tiny muted" style="margin-bottom:6px;">Bulk actions</div>
+                        <div id="rulesToolbar" class="stack">
+                            <label class="checkbox"><input type="checkbox" id="groupBySection" checked> Group by Section</label>
+                            <label class="tiny muted">Sort by</label>
+                            <select id="sortBy"> … </select>
+                            <label class="tiny muted">Move to section</label>
+                            <select id="moveToSection">
+                                <option value="">Move selected to section…</option>
+                                <option value="__new__">+ New section…</option>
+                            </select>
+                            <button id="btnMoveToSection" class="ghost">Move</button>
+                            <button id="btnClearSelection" class="ghost">Clear selection</button>
                         </div>
-                    </aside>
-                </div>
+
+                        <div class="hstack" style="gap:8px; margin:8px 0;">
+                            <button id="btnExpandSections" class="ghost">Expand sections</button>
+                            <button id="btnCollapseSections" class="ghost">Collapse sections</button>
+                        </div>
+
+                        <hr class="hr" />
+
+                        <hr class="hr" />
+                        <div class="tiny muted" style="margin:8px 0 4px;">Section order (grading sequence)</div>
+
+                        <div id="sectionOrder" class="stack" style="margin-bottom:8px;"></div>
+
+                        <div class="hstack" style="gap:8px;">
+                            <select id="sectionOrderPicker" style="flex:1 1 auto;"></select>
+                            <button id="btnOrderAdd" class="ghost">Add</button>
+                        </div>
+
+                        <button id="btnOrderClear" class="ghost" style="margin-top:6px;">Clear order</button>
+
+                        <hr class="hr" />
+                        <div class="tiny muted" style="margin:8px 0 4px;">Rules</div>
+                        <div id="railRules" class="stack"></div>
+                    </div>
+                </aside>
+            </div>
 
             <!-- RESULTS -->
             <div class="card stack" id="resultsCard" style="display:none">
@@ -1084,10 +1100,10 @@
                 for (const [sec, arr] of groups) {
                     const group = el('div', 'section-group');
                     const head = el('div', 'section-header', `
-                                                                <span class="chev">▾</span>
-                                                                <strong>${esc(sec)}</strong>
-                                                                <span class="count">${arr.length} ${arr.length === 1 ? 'rule' : 'rules'}</span>
-                                                                `);
+                                                                            <span class="chev">▾</span>
+                                                                            <strong>${esc(sec)}</strong>
+                                                                            <span class="count">${arr.length} ${arr.length === 1 ? 'rule' : 'rules'}</span>
+                                                                            `);
                     const isCollapsed = folded.has(sec);
                     if (isCollapsed) { group.classList.add('collapsed'); head.querySelector('.chev').style.transform = 'rotate(-90deg)'; }
 
@@ -1102,11 +1118,11 @@
                     for (const [r] of arr) {
                         const id = r.__id; // set by ensureRuleIds()
                         const row = el('div', 'rule-row', `
-                                                            <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
-                                                            <div class="mono">${esc(r.cell || '(range)')}</div>
-                                                            <div class="mono">${esc(r.type || '')}</div>
-                                                            <div>${esc(r.note || '')}</div>
-                                                        `);
+                                                                        <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
+                                                                        <div class="mono">${esc(r.cell || '(range)')}</div>
+                                                                        <div class="mono">${esc(r.type || '')}</div>
+                                                                        <div>${esc(r.note || '')}</div>
+                                                                    `);
                         row.querySelector('.rule-select').onchange = (ev) => {
                             if (ev.target.checked) UI.selected.add(id); else UI.selected.delete(id);
                         };
@@ -1122,11 +1138,11 @@
             for (const [r] of rows) {
                 const id = r.__id;
                 const row = el('div', 'rule-row', `
-                                                      <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
-                                                      <div class="mono">${esc(r.cell || '(range)')}</div>
-                                                      <div class="mono">${esc(r.type || '')}</div>
-                                                      <div>${esc(r.note || '')}</div>
-                                                    `);
+                                                                  <input type="checkbox" class="rule-select" data-id="${id}" ${UI.selected.has(id) ? 'checked' : ''}>
+                                                                  <div class="mono">${esc(r.cell || '(range)')}</div>
+                                                                  <div class="mono">${esc(r.type || '')}</div>
+                                                                  <div>${esc(r.note || '')}</div>
+                                                                `);
                 row.querySelector('.rule-select').onchange = (ev) => {
                     if (ev.target.checked) UI.selected.add(id); else UI.selected.delete(id);
                 };
@@ -1147,10 +1163,10 @@
             for (const [name, spec] of Object.entries(rubric.sheets || {})) {
                 const box = el('div', 'rail-sheet');
                 const head = el('div', 'rail-head', `
-                                                          <span class="chev">${openBefore.has(name) ? '▾' : '▸'}</span>
-                                                          <strong>${esc(name)}</strong>
-                                                          <span class="count">${(spec.checks || []).length} ${((spec.checks || []).length === 1 ? 'rule' : 'rules')}</span>
-                                                        `);
+                                                                      <span class="chev">${openBefore.has(name) ? '▾' : '▸'}</span>
+                                                                      <strong>${esc(name)}</strong>
+                                                                      <span class="count">${(spec.checks || []).length} ${((spec.checks || []).length === 1 ? 'rule' : 'rules')}</span>
+                                                                    `);
                 const body = el('div', 'rail-body');
 
                 if (!openBefore.has(name)) box.classList.add('collapsed');
@@ -2424,6 +2440,92 @@
             return r.table;
         }
 
+        /** Normalize section names so tiny differences (“and” vs “&”, double spaces, case) don’t split groups. */
+        function normalizeSectionName(s) {
+            return (s || "(no section)")
+                .trim()
+                .replace(/\s*&\s*/g, " & ")
+                .replace(/\s+and\s+/ig, " & ")
+                .replace(/\s+/g, " ")
+                .toLowerCase();
+        }
+
+        /** Pick a pretty display name for a section group (prefer meta.sectionOrder spelling if present). */
+        function chooseDisplayName(normKey, metaOrder) {
+            if (metaOrder && metaOrder.length) {
+                for (const name of metaOrder) {
+                    const n = normalizeSectionName(name);
+                    if (n === normKey) return name;   // use exact spelling from meta
+                }
+            }
+            // Fallback: title-case the normalized key
+            return normKey.replace(/\b\w/g, m => m.toUpperCase());
+        }
+
+        /** Sum section totals once. */
+        function sectionTotals(checks) {
+            let points = 0, earned = 0;
+            for (const c of checks) {
+                points += c.points || 0;
+                earned += c.earned || 0;
+            }
+            return { points, earned };
+        }
+
+        /** Grouped results renderer.
+         *  graded: object with .checks (your current grading result for one student)
+         *  rubric: the rubric JSON; we read rubric.meta.sectionOrder if present
+         */
+        function renderGroupedResults(graded, rubric) {
+            const root = document.createElement('div');
+            const metaOrder = rubric?.meta?.sectionOrder || [];
+
+            // 1) Bucket checks by normalized section key
+            const byKey = new Map(); // normKey -> { display, checks[] }
+            for (const ck of (graded.checks || [])) {
+                const key = normalizeSectionName(ck.section || "(no section)");
+                if (!byKey.has(key)) byKey.set(key, { display: null, checks: [] });
+                byKey.get(key).checks.push(ck);
+            }
+
+            // 2) Decide display names using meta.sectionOrder first
+            for (const [key, group] of byKey) {
+                group.display = chooseDisplayName(key, metaOrder);
+            }
+
+            // 3) Build rendering order: meta.sectionOrder first, then any remaining groups
+            const orderKeys = [];
+            const used = new Set();
+            for (const name of metaOrder) {
+                const k = normalizeSectionName(name);
+                if (byKey.has(k) && !used.has(k)) { orderKeys.push(k); used.add(k); }
+            }
+            for (const k of byKey.keys()) if (!used.has(k)) orderKeys.push(k);
+
+            // 4) Render each section once: header + its checks
+            for (const key of orderKeys) {
+                const group = byKey.get(key);
+                if (!group) continue;
+                const { points, earned } = sectionTotals(group.checks);
+
+                // Header (sticky-friendly)
+                const header = document.createElement('div');
+                header.className = 'result-section-header';
+                header.textContent = `${group.display} — ${earned}/${points}`;
+                root.appendChild(header);
+
+                // Body: all checks in this section
+                const body = document.createElement('div');
+                body.className = 'result-section-body';
+                for (const c of group.checks) {
+                    body.appendChild(renderCheckRow(c)); // ⬅️ your existing per-check row renderer
+                }
+                root.appendChild(body);
+            }
+
+            return root;
+        }
+
         // ---------- actions
         $('#btnAddSheet').onclick = () => { let base = 'Sheet', i = 1, name = base; while (rubric.sheets[name]) name = base + ' ' + (++i); rubric.sheets[name] = { checks: [emptyRule('formula')] }; render(); };
         $('#btnClear').onclick = () => { rubric = { points: +($('#totalPoints').value || 5), report: { include_pass_fail_column: $('#optPassFail').checked, include_comments: $('#optComments').checked }, sheets: {} }; render(); };
@@ -2595,17 +2697,168 @@
             return map;
         }
 
+        //function showReport(text) {
+        //    let data;
+        //    try { data = JSON.parse(text); } catch { alert('Bad JSON from server'); return; }
+        //    lastReportRaw = text;
+
+        //    let rows = [];
+        //    if (Array.isArray(data)) rows = data;
+        //    else if (Array.isArray(data.students)) rows = data.students;
+        //    else if (Array.isArray(data.results)) rows = data.results;
+
+        //    const body = document.getElementById('resultsBody');
+        //    body.innerHTML = '';
+
+        //    if (!rows.length) {
+        //        const card = el('div', 'card', '<div class="muted">No results to show.</div>');
+        //        body.appendChild(card);
+        //        document.getElementById('resultsCard').style.display = '';
+        //        return;
+        //    }
+
+        //    for (const r of rows) {
+        //        if (r && r.error && (r.student || r.name)) {
+        //            const card = el('div', 'card');
+        //            const hdr = el('div', 'hstack');
+        //            hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
+        //                              <span class="tag fail">FAIL</span>
+        //                              <span class="muted">${escapeHtml(String(r.error))}</span>`;
+        //            card.appendChild(hdr);
+        //            body.appendChild(card);
+        //            continue;
+        //        }
+
+        //        const isNested = r && typeof r.grade === 'object';
+        //        const grade = isNested ? r.grade : r;
+
+        //        const name = isNested ? (r.student ?? r.name ?? 'Student') : (grade.name ?? r.student ?? 'Student');
+        //        const points = grade.total_points ?? grade.points ?? grade.Points ?? 0;
+        //        const earned = grade.score_numeric ?? grade.earned ?? grade.Earned ?? 0;
+        //        const details = grade.details ?? grade.Details ?? [];
+
+        //        const pNum = Number(points), eNum = Number(earned);
+        //        const headerPass = pNum > 0 && Math.abs(eNum - pNum) < 1e-9;
+        //        const headerClass = headerPass ? 'pass' : 'fail';
+        //        const headerStatus = headerPass ? 'PASS' : 'FAIL';
+
+        //        const card = el('div', 'card');
+        //        const hdr = el('div', 'hstack');
+        //        hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
+        //                            <span class="tag ${headerClass}">${headerStatus}</span>
+        //                            <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+        //        card.appendChild(hdr);
+
+        //        const tbl = el('table');
+        //        const thead = el('thead');
+        //        thead.innerHTML = `<tr>
+        //                              <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+        //                              </tr>`;
+        //        tbl.appendChild(thead);
+
+        //        const tb = document.createElement('tbody');
+        //        const sectionIndex = buildSectionIndex();
+        //        const sectionTotals = new Map();
+
+        //        for (const d of details) {
+        //            const sec = sectionIndex.get(String(d.check ?? d.rule ?? '')) || null;
+        //            if (!sec) continue;
+        //            const t = sectionTotals.get(sec) || { earned: 0, points: 0 };
+        //            t.points += (+d.points || 0);
+        //            t.earned += (+d.earned || 0);
+        //            sectionTotals.set(sec, t);
+        //        }
+
+        //        let currentSection = null;
+        //        function maybeInsertSectionRow(sec) {
+        //            if (!sec || sec === currentSection) return;
+        //            currentSection = sec;
+        //            const t = sectionTotals.get(sec) || { earned: 0, points: 0 };
+        //            const tr = document.createElement('tr');
+        //            tr.className = 'section-row';
+        //            tr.innerHTML = `
+        //                             <td colspan="5" style="font-weight:600; padding-top:10px;">
+        //                             ${escapeHtml(sec)}
+        //                             <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+        //                             </td>`;
+        //            tb.appendChild(tr);
+        //        }
+
+        //        for (const d of details) {
+        //            const ok = (d.passed ?? d.Passed);
+        //            const okBool = typeof ok === 'boolean' ? ok : (Number(d.earned) >= Number(d.points));
+        //            const partialBool = !okBool && Number(d.earned) > 0;
+
+        //            const sec = sectionIndex.get(String(d.check ?? d.rule ?? '')) || null;
+        //            maybeInsertSectionRow(sec);
+
+        //            const tr = document.createElement('tr');
+        //            tr.dataset.status = okBool ? 'pass' : (partialBool ? 'partial' : 'fail');
+
+        //            tr.innerHTML = `
+        //                    <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+        //                    <td class="mono">${fmtNum(d.points)}</td>
+        //                    <td class="mono">${fmtNum(d.earned)}</td>
+        //                    <td>${okBool
+        //                    ? '<span class="tag pass">PASS</span>'
+        //                    : (partialBool
+        //                        ? '<span class="tag partial">PARTIAL</span>'
+        //                        : '<span class="tag fail">FAIL</span>')
+        //                }</td>
+        //                    <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+        //            tb.appendChild(tr);
+        //        }
+
+        //        tbl.appendChild(tb);
+        //        card.appendChild(tbl);
+        //        body.appendChild(card);
+        //    }
+
+        //    const on = localStorage.getItem('onlyMisses') === '1' || document.getElementById('toggleOnlyMisses')?.checked;
+        //    document.getElementById('resultsCard').classList.toggle('only-misses', !!on);
+
+        //    document.getElementById('resultsCard').style.display = '';
+        //    window.scrollTo({ top: document.getElementById('resultsCard').offsetTop - 10, behavior: 'smooth' });
+        //}
+
+        function guessSectionFromLabel(label) {
+            const s = String(label || '').toLowerCase();
+
+            // pivots
+            if (s.startsWith('pivot_layout') || s.startsWith('pivot') || s.includes(" pivot"))
+                return 'Pivot Tables';
+
+            // charts
+            if (s.startsWith('chart:') || s.includes("chart '"))
+                return 'Chart';
+
+            // excel tables
+            if (s.startsWith('table:') || s.includes("table '"))
+                return 'Excel Table';
+
+            // conditional formatting
+            if (s.startsWith('conditional_') || s.startsWith('cf:'))
+                return 'Conditional Formatting';
+
+            // value/range checks often are from “Sort and Filtering” or “Imported Data”;
+            // leave them to the normal index (they usually have an entry). If none, no change.
+            return '(no section)';
+        }
+
         function showReport(text) {
+            // 1) Parse payload
             let data;
             try { data = JSON.parse(text); } catch { alert('Bad JSON from server'); return; }
             lastReportRaw = text;
 
+            // 2) Normalize rows (supports single result, {students}, {results})
             let rows = [];
             if (Array.isArray(data)) rows = data;
             else if (Array.isArray(data.students)) rows = data.students;
             else if (Array.isArray(data.results)) rows = data.results;
 
             const body = document.getElementById('resultsBody');
+            if (!body) { console.error('#resultsBody not found'); alert('Internal error: results container missing.'); return; }
             body.innerHTML = '';
 
             if (!rows.length) {
@@ -2615,13 +2868,46 @@
                 return;
             }
 
+            // 3) Try to read rubric (for section ordering)
+            let rubricMeta = {};
+            try {
+                const j = document.getElementById('jsonBox')?.value;
+                if (j) {
+                    const r = JSON.parse(j);
+                    rubricMeta = r?.meta || {};
+                }
+            } catch (_) { /* ignore */ }
+
+            // Helper to render a single row (unchanged behavior)
+            const renderRow = (d) => {
+                const ok = (d.passed ?? d.Passed);
+                const okBool = typeof ok === 'boolean' ? ok : (Number(d.earned) >= Number(d.points));
+                const partialBool = !okBool && Number(d.earned) > 0;
+
+                const tr = document.createElement('tr');
+                tr.dataset.status = okBool ? 'pass' : (partialBool ? 'partial' : 'fail');
+
+                tr.innerHTML = `
+                  <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+                  <td class="mono">${fmtNum(d.points)}</td>
+                  <td class="mono">${fmtNum(d.earned)}</td>
+                  <td>${okBool
+                        ? '<span class="tag pass">PASS</span>'
+                        : (partialBool
+                            ? '<span class="tag partial">PARTIAL</span>'
+                            : '<span class="tag fail">FAIL</span>')
+                    }</td>
+                  <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+                return tr;
+            };
+
             for (const r of rows) {
                 if (r && r.error && (r.student || r.name)) {
                     const card = el('div', 'card');
                     const hdr = el('div', 'hstack');
                     hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
-                                      <span class="tag fail">FAIL</span>
-                                      <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                                   <span class="tag fail">FAIL</span>
+                                   <span class="muted">${escapeHtml(String(r.error))}</span>`;
                     card.appendChild(hdr);
                     body.appendChild(card);
                     continue;
@@ -2630,7 +2916,8 @@
                 const isNested = r && typeof r.grade === 'object';
                 const grade = isNested ? r.grade : r;
 
-                const name = isNested ? (r.student ?? r.name ?? 'Student') : (grade.name ?? r.student ?? 'Student');
+                const name = isNested ? (r.student ?? r.name ?? 'Student')
+                    : (grade.name ?? r.student ?? 'Student');
                 const points = grade.total_points ?? grade.points ?? grade.Points ?? 0;
                 const earned = grade.score_numeric ?? grade.earned ?? grade.Earned ?? 0;
                 const details = grade.details ?? grade.Details ?? [];
@@ -2643,69 +2930,62 @@
                 const card = el('div', 'card');
                 const hdr = el('div', 'hstack');
                 hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
-                                    <span class="tag ${headerClass}">${headerStatus}</span>
-                                    <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                                 <span class="tag ${headerClass}">${headerStatus}</span>
+                                 <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
                 card.appendChild(hdr);
 
                 const tbl = el('table');
                 const thead = el('thead');
                 thead.innerHTML = `<tr>
-                                      <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
-                                      </tr>`;
+                  <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                </tr>`;
                 tbl.appendChild(thead);
 
                 const tb = document.createElement('tbody');
-                const sectionIndex = buildSectionIndex();
-                const sectionTotals = new Map();
+
+                // ===== GROUP BY SECTION (this is the key change) =====
+                const sectionIndex = buildSectionIndex();           // maps check/rule label -> section name
+                const bySection = new Map();                        // section -> d[]
+                const totals = new Map();                           // section -> {points, earned}
 
                 for (const d of details) {
-                    const sec = sectionIndex.get(String(d.check ?? d.rule ?? '')) || null;
-                    if (!sec) continue;
-                    const t = sectionTotals.get(sec) || { earned: 0, points: 0 };
+                    const label = String(d.check ?? d.rule ?? '');
+                    let sec = sectionIndex.get(label);
+                    if (!sec || sec === '(no section)') sec = guessSectionFromLabel(label);
+                    if (!bySection.has(sec)) bySection.set(sec, []);
+                    bySection.get(sec).push(d);
+
+                    const t = totals.get(sec) || { points: 0, earned: 0 };
                     t.points += (+d.points || 0);
                     t.earned += (+d.earned || 0);
-                    sectionTotals.set(sec, t);
+                    totals.set(sec, t);
                 }
 
-                let currentSection = null;
-                function maybeInsertSectionRow(sec) {
-                    if (!sec || sec === currentSection) return;
-                    currentSection = sec;
-                    const t = sectionTotals.get(sec) || { earned: 0, points: 0 };
-                    const tr = document.createElement('tr');
-                    tr.className = 'section-row';
-                    tr.innerHTML = `
-                                     <td colspan="5" style="font-weight:600; padding-top:10px;">
-                                     ${escapeHtml(sec)}
-                                     <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
-                                     </td>`;
-                    tb.appendChild(tr);
+                // Determine render order: rubric meta first, then any remaining sections
+                const wantedOrder = Array.isArray(rubricMeta.sectionOrder) ? rubricMeta.sectionOrder : [];
+                const order = [];
+                const used = new Set();
+                for (const s of wantedOrder) {
+                    if (bySection.has(s) && !used.has(s)) { order.push(s); used.add(s); }
                 }
+                for (const s of bySection.keys()) if (!used.has(s)) order.push(s);
 
-                for (const d of details) {
-                    const ok = (d.passed ?? d.Passed);
-                    const okBool = typeof ok === 'boolean' ? ok : (Number(d.earned) >= Number(d.points));
-                    const partialBool = !okBool && Number(d.earned) > 0;
+                // Render: one section header, then all its rows
+                for (const sec of order) {
+                    const t = totals.get(sec) || { points: 0, earned: 0 };
+                    const trHeader = document.createElement('tr');
+                    trHeader.className = 'section-row';
+                    trHeader.innerHTML = `
+                    <td colspan="5" style="font-weight:600; padding-top:10px;">
+                      ${escapeHtml(sec)} <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+                    </td>`;
+                    tb.appendChild(trHeader);
 
-                    const sec = sectionIndex.get(String(d.check ?? d.rule ?? '')) || null;
-                    maybeInsertSectionRow(sec);
-
-                    const tr = document.createElement('tr');
-                    tr.dataset.status = okBool ? 'pass' : (partialBool ? 'partial' : 'fail');
-
-                    tr.innerHTML = `
-                            <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
-                            <td class="mono">${fmtNum(d.points)}</td>
-                            <td class="mono">${fmtNum(d.earned)}</td>
-                            <td>${okBool
-                            ? '<span class="tag pass">PASS</span>'
-                            : (partialBool
-                                ? '<span class="tag partial">PARTIAL</span>'
-                                : '<span class="tag fail">FAIL</span>')
-                        }</td>
-                            <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
-                    tb.appendChild(tr);
+                    for (const d of bySection.get(sec)) {
+                        tb.appendChild(renderRow(d));
+                    }
                 }
+                // ===== END GROUPING =====
 
                 tbl.appendChild(tb);
                 card.appendChild(tbl);
@@ -2713,11 +2993,12 @@
             }
 
             const on = localStorage.getItem('onlyMisses') === '1' || document.getElementById('toggleOnlyMisses')?.checked;
-            document.getElementById('resultsCard').classList.toggle('only-misses', !!on);
+            document.getElementById('resultsCard')?.classList?.toggle('only-misses', !!on);
 
             document.getElementById('resultsCard').style.display = '';
             window.scrollTo({ top: document.getElementById('resultsCard').offsetTop - 10, behavior: 'smooth' });
         }
+
 
         const toggleOnlyMisses = document.getElementById('toggleOnlyMisses');
         if (toggleOnlyMisses) {
@@ -2867,10 +3148,10 @@
                 row.className = 'hstack';
                 row.style.gap = '8px';
                 row.innerHTML = `
-                                  <input class="sectionName" type="text" placeholder="Section name (e.g., Totals)" style="min-width:220px" value="${name}">
-                                  <input class="sectionRanges" type="text" placeholder="A1 ranges (comma-separated, e.g., A2:B20, E8:E18)" style="min-width:360px" value="${ranges}">
-                                  <button class="ghost removeRowBtn" type="button">Remove</button>
-                                `;
+                                              <input class="sectionName" type="text" placeholder="Section name (e.g., Totals)" style="min-width:220px" value="${name}">
+                                              <input class="sectionRanges" type="text" placeholder="A1 ranges (comma-separated, e.g., A2:B20, E8:E18)" style="min-width:360px" value="${ranges}">
+                                              <button class="ghost removeRowBtn" type="button">Remove</button>
+                                            `;
                 row.querySelector('.removeRowBtn').onclick = () => row.remove();
                 return row;
             }
@@ -2894,13 +3175,13 @@
                 g.className = 'card stack';
                 g.style.padding = '12px';
                 g.innerHTML = `
-                              <div class="hstack" style="gap:8px;align-items:center;flex-wrap:wrap;">
-                                <select class="sheetSel" style="min-width:220px"></select>
-                                <button class="ghost addRowBtn" type="button">+ Add Section + Ranges</button>
-                                <button class="danger removeGroupBtn" type="button" style="margin-left:auto">Remove sheet</button>
-                              </div>
-                              <div class="stack rows" style="gap:8px;margin-top:8px;"></div>
-                            `;
+                                          <div class="hstack" style="gap:8px;align-items:center;flex-wrap:wrap;">
+                                            <select class="sheetSel" style="min-width:220px"></select>
+                                            <button class="ghost addRowBtn" type="button">+ Add Section + Ranges</button>
+                                            <button class="danger removeGroupBtn" type="button" style="margin-left:auto">Remove sheet</button>
+                                          </div>
+                                          <div class="stack rows" style="gap:8px;margin-top:8px;"></div>
+                                        `;
                 const sheetSel = g.querySelector('.sheetSel');
                 const rowsEl = g.querySelector('.rows');
 
