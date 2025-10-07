@@ -124,8 +124,9 @@ public class PivotSpec
 
 public class PivotValueSpec
 {
-    [JsonPropertyName("field")] public string Field { get; set; } = "";
-    [JsonPropertyName("agg")] public string? Agg { get; set; } // sum,count,average,min,max
+    public string? Field { get; set; }   // caption like "Sum of Sales"
+    public string? Agg { get; set; }     // "sum", "average", ...
+    public string? Source { get; set; }  // underlying field name, e.g., "Sales"
 }
 
 public class ConditionalFormatSpec

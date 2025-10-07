@@ -6,7 +6,7 @@ using System.Xml.Linq;
 
 public static partial class RubricAuto
 {
-    
+
     /// <summary>
     /// Parse the KEY workbook ZIP to discover pivot tables and emit pivot_layout rules
     /// keyed by sheet name.
@@ -19,13 +19,16 @@ public static partial class RubricAuto
         using var ms = new MemoryStream(keyZipBytes);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read, leaveOpen: true);
 
-        // Map sheet index to sheet name from xl/workbook.xml
+        // -- Load workbook + namespaces
         var wbEntry = zip.GetEntry("xl/workbook.xml");
         if (wbEntry is null) return map;
 
         var wbXml = XDocument.Load(wbEntry.Open());
         XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        XNamespace relns = "http://schemas.openxmlformats.org/package/2006/relationships";
+        XNamespace odn = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
+        // --- Build sheet index -> name
         var sheetIndexToName = new Dictionary<int, string>();
         int idx = 1;
         var sheetsEl = wbXml.Root?.Element(ns + "sheets");
@@ -39,7 +42,46 @@ public static partial class RubricAuto
             }
         }
 
-        // For each sheetN.xml, open its _rels to find pivotTable targets
+        // --- Build cacheId -> cache field names (from pivotCacheDefinition files)
+        var cacheIdToNames = new Dictionary<int, string[]>();
+
+        // workbook rels maps r:id -> target path
+        var wbRelsEntry = zip.GetEntry("xl/_rels/workbook.xml.rels");
+        Dictionary<string, string> idToTarget = new();
+        if (wbRelsEntry is not null)
+        {
+            var wbRels = XDocument.Load(wbRelsEntry.Open());
+            idToTarget = wbRels.Root!
+                .Elements(relns + "Relationship")
+                .Where(r => ((string?)r.Attribute("Type"))?.EndsWith("/pivotCacheDefinition") == true)
+                .ToDictionary(
+                    r => (string)r.Attribute("Id")!,
+                    r => ("xl/" + ((string)r.Attribute("Target")!).TrimStart('/')).Replace("../", "")
+                );
+        }
+
+        // map cacheId -> r:id from workbook.xml
+        var caches = wbXml.Root!.Element(ns + "pivotCaches")?.Elements(ns + "pivotCache") ?? Enumerable.Empty<XElement>();
+        foreach (var pc in caches)
+        {
+            if (!int.TryParse((string?)pc.Attribute("cacheId"), out var cid)) continue;
+            var rid = (string?)pc.Attribute(XName.Get("id", odn.NamespaceName));
+            if (rid is null || !idToTarget.TryGetValue(rid, out var defPath)) continue;
+
+            var defEntry = zip.GetEntry(defPath);
+            if (defEntry is null) continue;
+
+            var cdef = XDocument.Load(defEntry.Open());
+            var names = cdef.Root!
+                .Element(ns + "cacheFields")?
+                .Elements(ns + "cacheField")
+                .Select(cf => ((string?)cf.Attribute("name"))?.Trim() ?? "")
+                .ToArray() ?? Array.Empty<string>();
+
+            cacheIdToNames[cid] = names;
+        }
+
+        // --- For each sheet, find pivotTables and emit rules
         for (int i = 1; i <= sheetIndexToName.Count; i++)
         {
             var sheetName = sheetIndexToName[i];
@@ -48,19 +90,19 @@ public static partial class RubricAuto
             if (relsEntry is null) continue;
 
             var relsXml = XDocument.Load(relsEntry.Open());
-            var rels = relsXml.Root!.Elements()
-                        .Where(e => ((string?)e.Attribute("Type"))?.Contains("pivotTable", StringComparison.OrdinalIgnoreCase) == true)
-                        .Select(e => (string?)e.Attribute("Target"))
-                        .Where(t => !string.IsNullOrWhiteSpace(t))
-                        .ToList();
+            var relTargets = relsXml.Root!.Elements(relns + "Relationship")
+                .Where(e => ((string?)e.Attribute("Type"))?.Contains("pivotTable", StringComparison.OrdinalIgnoreCase) == true)
+                .Select(e => (string?)e.Attribute("Target"))
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .ToList();
 
-
-            foreach (var target in rels)
+            foreach (var target in relTargets)
             {
-                var normalized = target!.Replace("\\", "/");
-                var full = target.StartsWith("/") ? target.TrimStart('/')
-                         : target.StartsWith("../") ? "xl/" + target.Replace("../", "")
-                         : "xl/worksheets/" + target;
+                var full = target!.StartsWith("/")
+                             ? target.TrimStart('/')
+                             : target.StartsWith("../")
+                                ? "xl/" + target.Replace("../", "")
+                                : "xl/worksheets/" + target;
 
                 if (full.Contains("/pivotTables/", StringComparison.OrdinalIgnoreCase))
                 {
@@ -75,18 +117,31 @@ public static partial class RubricAuto
                 var def = ptXml.Root!;
                 var ptName = (string?)def.Attribute("name") ?? "Pivot";
 
-                // Gather pivotFields to map indexes → names
+                // cacheId from pivotTableDefinition -> look up cache field names
+                int cacheId = 0;
+                int.TryParse((string?)def.Attribute("cacheId"), out cacheId);
+                cacheIdToNames.TryGetValue(cacheId, out var cacheFieldNames);
+
+                // pivotFields (some files have @name here; many leave it empty)
                 var pivotFields = def.Element(ns + "pivotFields")?.Elements(ns + "pivotField").ToList()
                                    ?? new List<XElement>();
 
                 string NameByIndex(int fi)
                 {
+                    // 1) pivotField @name if present
                     if (fi >= 0 && fi < pivotFields.Count)
                     {
                         var pf = pivotFields[fi];
-                        var nAttr = (string?)pf.Attribute("name");
+                        var nAttr = ((string?)pf.Attribute("name"))?.Trim();
                         if (!string.IsNullOrWhiteSpace(nAttr)) return nAttr!;
                     }
+                    // 2) cache field name (real source column)
+                    if (cacheFieldNames is not null && fi >= 0 && fi < cacheFieldNames.Length)
+                    {
+                        var n = cacheFieldNames[fi]?.Trim();
+                        if (!string.IsNullOrWhiteSpace(n)) return n!;
+                    }
+                    // 3) fallback
                     return $"Field{fi}";
                 }
 
@@ -102,13 +157,13 @@ public static partial class RubricAuto
                 foreach (var pf in def.Element(ns + "pageFields")?.Elements(ns + "pageField") ?? Enumerable.Empty<XElement>())
                     if (int.TryParse((string?)pf.Attribute("fld"), out var fi)) filters.Add(NameByIndex(fi));
 
+                // Values: include caption + normalized agg + source field name (via fld index)
                 var values = new List<PivotValueSpec>();
                 foreach (var df in def.Element(ns + "dataFields")?.Elements(ns + "dataField") ?? Enumerable.Empty<XElement>())
                 {
-                    var nm = (string?)df.Attribute("name");
-                    var fld = (string?)df.Attribute("fld");
-                    string fieldName = !string.IsNullOrWhiteSpace(nm) ? nm!
-                                      : (int.TryParse(fld, out var fi) ? NameByIndex(fi) : "Value");
+                    var caption = ((string?)df.Attribute("name"))?.Trim();
+                    var fldAttr = (string?)df.Attribute("fld");
+                    var src = (int.TryParse(fldAttr, out var fi)) ? NameByIndex(fi) : null;
 
                     var subtotal = ((string?)df.Attribute("subtotal"))?.ToLowerInvariant() ?? "sum";
                     string agg = subtotal.Contains("count") ? "count"
@@ -117,7 +172,16 @@ public static partial class RubricAuto
                                : subtotal.Contains("max") ? "max"
                                : "sum";
 
-                    values.Add(new PivotValueSpec { Field = fieldName, Agg = agg });
+                    // prefer caption if present; else synthesize "Sum of X"
+                    if (string.IsNullOrWhiteSpace(caption) && !string.IsNullOrWhiteSpace(src))
+                        caption = $"{char.ToUpper(agg[0]) + agg[1..]} of {src}";
+
+                    values.Add(new PivotValueSpec
+                    {
+                        Field = caption ?? "Value",
+                        Agg = agg,
+                        Source = src   // <-- add this property to your PivotValueSpec (string? Source)
+                    });
                 }
 
                 var rule = new Rule
@@ -143,4 +207,5 @@ public static partial class RubricAuto
 
         return map;
     }
+
 }

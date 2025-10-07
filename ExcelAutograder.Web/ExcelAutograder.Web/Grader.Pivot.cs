@@ -45,6 +45,21 @@ public static partial class Grader
             return string.IsNullOrWhiteSpace(a) ? "sum" : a;
         }
 
+        static string Norm(string s) => (s ?? "").Trim().ToLowerInvariant();
+
+        static string? TryExtractSourceFromCaption(string caption, string agg)
+        {
+            var c = (caption ?? "").Trim();
+            if (c.Length == 0) return null;
+
+            string[] prefixes = { "sum of ", "average of ", "avg of ", "count of ", "min of ", "max of ", "product of " };
+            foreach (var p in prefixes)
+                if (c.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+                    return c.Substring(p.Length).Trim();
+
+            return null;
+        }
+
         var findings = new List<string>();
 
         foreach (var ws in sheets)
@@ -73,14 +88,20 @@ public static partial class Grader
                 foreach (var f in GetEnumProp(pt, "ReportFilters"))
                     actualFilters.Add(FirstNonEmpty(GetStrProp(f, "SourceName"), GetStrProp(f, "CustomName"), GetStrProp(f, "Name")));
 
-                HashSet<string> actualValues = new(StringComparer.OrdinalIgnoreCase);
+                HashSet<string> actualCaptionAgg = new(StringComparer.OrdinalIgnoreCase);
+                HashSet<string> actualSourceAgg = new(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var v in GetEnumProp(pt, "Values"))
                 {
-                    var fieldName = FirstNonEmpty(GetStrProp(v, "SourceName"), GetStrProp(v, "CustomName"), GetStrProp(v, "Name"));
-                    if (string.IsNullOrWhiteSpace(fieldName)) continue;
+                    var caption = FirstNonEmpty(GetStrProp(v, "CustomName"), GetStrProp(v, "Name"), GetStrProp(v, "SourceName"));
+                    var source = GetStrProp(v, "SourceName");
                     var sf = GetStrProp(v, "SummaryFormula") ?? GetStrProp(v, "Function") ?? S(v);
                     var agg = NormAgg(sf ?? "");
-                    actualValues.Add($"{fieldName}|{agg}");
+
+                    if (!string.IsNullOrWhiteSpace(caption))
+                        actualCaptionAgg.Add($"{caption}|{agg}");
+                    if (!string.IsNullOrWhiteSpace(source))
+                        actualSourceAgg.Add($"{source}|{agg}");
                 }
 
                 var missing = new List<string>();
@@ -88,9 +109,25 @@ public static partial class Grader
                 if (spec.Columns is { Count: > 0 }) foreach (var need in spec.Columns) if (!actualCols.Contains(need)) missing.Add($"column '{need}'");
                 if (spec.Filters is { Count: > 0 }) foreach (var need in spec.Filters) if (!actualFilters.Contains(need)) missing.Add($"filter '{need}'");
                 if (spec.Values is { Count: > 0 })
+                {
                     foreach (var need in spec.Values)
-                        if (!actualValues.Contains($"{need.Field}|{NormAgg(need.Agg ?? "sum")}"))
-                            missing.Add($"value '{need.Field}' with agg '{NormAgg(need.Agg ?? "sum")}'");
+                    {
+                        var agg = NormAgg(need.Agg ?? "sum");
+                        var wantCaption = $"{need.Field}|{agg}";
+
+                        bool ok = actualCaptionAgg.Contains(wantCaption);
+
+                        if (!ok)
+                        {
+                            var inferredSource = TryExtractSourceFromCaption(need.Field ?? "", agg);
+                            if (!string.IsNullOrWhiteSpace(inferredSource))
+                                ok = actualSourceAgg.Contains($"{inferredSource}|{agg}");
+                        }
+
+                        if (!ok)
+                            missing.Add($"value '{need.Field}' with agg '{agg}'");
+                    }
+                }
 
                 if (missing.Count == 0)
                     return new CheckResult($"pivot:{ws.Name}/{(spec.TableNameLike ?? ptName)}", pts, pts, true,
