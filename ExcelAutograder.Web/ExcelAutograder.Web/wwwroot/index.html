@@ -2745,14 +2745,13 @@
             }
 
             // 3) Try to read rubric (for section ordering)
-            let rubricMeta = {};
+            let rubricJson = null;
             try {
                 const j = document.getElementById('jsonBox')?.value;
-                if (j) {
-                    const r = JSON.parse(j);
-                    rubricMeta = r?.meta || {};
-                }
+                if (j) rubricJson = JSON.parse(j);
             } catch (_) { /* ignore */ }
+            const rubricMeta = rubricJson?.meta || {};
+            const rubricSheets = rubricJson?.sheets || {};
 
             // Helper to render a single row (unchanged behavior)
             const renderRow = (d) => {
@@ -2764,26 +2763,27 @@
                 tr.dataset.status = okBool ? 'pass' : (partialBool ? 'partial' : 'fail');
 
                 tr.innerHTML = `
-                  <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
-                  <td class="mono">${fmtNum(d.points)}</td>
-                  <td class="mono">${fmtNum(d.earned)}</td>
-                  <td>${okBool
+      <td class="mono">${escapeHtml(d.check ?? d.rule ?? '')}</td>
+      <td class="mono">${fmtNum(d.points)}</td>
+      <td class="mono">${fmtNum(d.earned)}</td>
+      <td>${okBool
                         ? '<span class="tag pass">PASS</span>'
                         : (partialBool
                             ? '<span class="tag partial">PARTIAL</span>'
-                            : '<span class="tag fail">FAIL</span>')
-                    }</td>
-                  <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
+                            : '<span class="tag fail">FAIL</span>')}
+      </td>
+      <td>${escapeHtml(d.comment ?? d.message ?? '')}</td>`;
                 return tr;
             };
 
             for (const r of rows) {
+                // error rows
                 if (r && r.error && (r.student || r.name)) {
                     const card = el('div', 'card');
                     const hdr = el('div', 'hstack');
                     hdr.innerHTML = `<h3>${escapeHtml(r.student ?? r.name ?? 'Student')}</h3>
-                                   <span class="tag fail">FAIL</span>
-                                   <span class="muted">${escapeHtml(String(r.error))}</span>`;
+                       <span class="tag fail">FAIL</span>
+                       <span class="muted">${escapeHtml(String(r.error))}</span>`;
                     card.appendChild(hdr);
                     body.appendChild(card);
                     continue;
@@ -2806,62 +2806,87 @@
                 const card = el('div', 'card');
                 const hdr = el('div', 'hstack');
                 hdr.innerHTML = `<h3>${escapeHtml(name)}</h3>
-                                 <span class="tag ${headerClass}">${headerStatus}</span>
-                                 <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
+                     <span class="tag ${headerClass}">${headerStatus}</span>
+                     <span class="muted">Score ${fmtNum(earned)}/${fmtNum(points)}</span>`;
                 card.appendChild(hdr);
 
                 const tbl = el('table');
                 const thead = el('thead');
                 thead.innerHTML = `<tr>
-                  <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
-                </tr>`;
+                                      <th>Check</th><th>Points</th><th>Earned</th><th>Result</th><th>Comment</th>
+                                    </tr>`;
                 tbl.appendChild(thead);
 
                 const tb = document.createElement('tbody');
 
-                // ===== GROUP BY SECTION (this is the key change) =====
-                const sectionIndex = buildSectionIndex();           // maps check/rule label -> section name
-                const bySection = new Map();                        // section -> d[]
-                const totals = new Map();                           // section -> {points, earned}
-
+                // ===== NEW: group strictly by SHEET then by SECTION coming from backend =====
+                // Build: Map<sheet, Map<section, rows[]>>
+                const bySheet = new Map();
                 for (const d of details) {
-                    const label = String(d.check ?? d.rule ?? '');
-                    let sec = sectionIndex.get(label);
-                    if (!sec || sec === '(no section)') sec = guessSectionFromLabel(label);
-                    if (!bySection.has(sec)) bySection.set(sec, []);
-                    bySection.get(sec).push(d);
-
-                    const t = totals.get(sec) || { points: 0, earned: 0 };
-                    t.points += (+d.points || 0);
-                    t.earned += (+d.earned || 0);
-                    totals.set(sec, t);
+                    const sh = (d.sheet || '(Unknown sheet)').toString();
+                    const sec = (d.section || '(No section)').toString();
+                    if (!bySheet.has(sh)) bySheet.set(sh, new Map());
+                    const m = bySheet.get(sh);
+                    if (!m.has(sec)) m.set(sec, []);
+                    m.get(sec).push(d);
                 }
 
-                // Determine render order: rubric meta first, then any remaining sections
-                const wantedOrder = Array.isArray(rubricMeta.sectionOrder) ? rubricMeta.sectionOrder : [];
-                const order = [];
-                const used = new Set();
-                for (const s of wantedOrder) {
-                    if (bySection.has(s) && !used.has(s)) { order.push(s); used.add(s); }
-                }
-                for (const s of bySection.keys()) if (!used.has(s)) order.push(s);
+                // Decide sheet render order (use rubric order of sheets if we can)
+                const rubricSheetNames = Object.keys(rubricSheets);
+                const seenSheets = new Set();
+                const orderedSheets = [];
 
-                // Render: one section header, then all its rows
-                for (const sec of order) {
-                    const t = totals.get(sec) || { points: 0, earned: 0 };
-                    const trHeader = document.createElement('tr');
-                    trHeader.className = 'section-row';
-                    trHeader.innerHTML = `
-                    <td colspan="5" style="font-weight:600; padding-top:10px;">
-                      ${escapeHtml(sec)} <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
-                    </td>`;
-                    tb.appendChild(trHeader);
+                // first: any sheets present in rubric, in rubric order
+                for (const sh of rubricSheetNames) if (bySheet.has(sh)) { orderedSheets.push(sh); seenSheets.add(sh); }
+                // then: any remaining sheets
+                for (const sh of bySheet.keys()) if (!seenSheets.has(sh)) orderedSheets.push(sh);
 
-                    for (const d of bySection.get(sec)) {
-                        tb.appendChild(renderRow(d));
+                for (const sheetName of orderedSheets) {
+                    // Sheet header row
+                    const trSheet = document.createElement('tr');
+                    trSheet.className = 'section-row';
+                    trSheet.innerHTML = `<td colspan="5" style="font-weight:700;">Sheet: ${escapeHtml(sheetName)}</td>`;
+                    tb.appendChild(trSheet);
+
+                    const secMap = bySheet.get(sheetName);
+
+                    // Desired section order: per-sheet 'section_order' or global meta.sectionOrder
+                    const desiredOrder = Array.isArray(rubricSheets?.[sheetName]?.section_order) &&
+                        rubricSheets[sheetName].section_order.length
+                        ? rubricSheets[sheetName].section_order
+                        : (Array.isArray(rubricMeta.sectionOrder) ? rubricMeta.sectionOrder : []);
+
+                    // Compute totals & order
+                    const totals = new Map(); // section -> {points, earned}
+                    for (const [sec, arr] of secMap) {
+                        let pts = 0, earn = 0;
+                        for (const d of arr) { pts += (+d.points || 0); earn += (+d.earned || 0); }
+                        totals.set(sec, { points: pts, earned: earn });
+                    }
+
+                    const presentSecs = Array.from(secMap.keys());
+                    const used = new Set();
+                    const orderedSecs = [];
+                    for (const s of desiredOrder) if (secMap.has(s) && !used.has(s)) { orderedSecs.push(s); used.add(s); }
+                    for (const s of presentSecs) if (!used.has(s)) orderedSecs.push(s);
+
+                    // Render sections under this sheet
+                    for (const sec of orderedSecs) {
+                        const t = totals.get(sec) || { points: 0, earned: 0 };
+                        const trHeader = document.createElement('tr');
+                        trHeader.className = 'section-row';
+                        trHeader.innerHTML = `
+                                              <td colspan="5" style="font-weight:600; padding-top:8px;">
+                                                ${escapeHtml(sec)} <span class="muted"> — ${fmtNum(t.earned)}/${fmtNum(t.points)}</span>
+                                              </td>`;
+                        tb.appendChild(trHeader);
+
+                        for (const d of secMap.get(sec)) {
+                            tb.appendChild(renderRow(d));
+                        }
                     }
                 }
-                // ===== END GROUPING =====
+                // ===== END NEW GROUPING =====
 
                 tbl.appendChild(tb);
                 card.appendChild(tbl);

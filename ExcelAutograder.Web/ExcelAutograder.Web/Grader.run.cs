@@ -23,7 +23,8 @@ public static partial class Grader
     // ---- Entry point used by the web endpoint
     public static object Run(XLWorkbook wbKey, XLWorkbook wbStudent, Rubric rubric)
     {
-        var results = new List<CheckResult>();
+        // Keep result + section + sheet so the UI can group correctly.
+        var results = new List<(CheckResult res, string section, string sheet)>();
 
         // helper for case-insensitive lookup
         IXLWorksheet? FindWorksheet(XLWorkbook wb, string name) =>
@@ -33,27 +34,29 @@ public static partial class Grader
         foreach (var (sheetName, spec) in rubric.Sheets)
         {
             var wsS = FindWorksheet(wbStudent, sheetName);
+            var wsK = FindWorksheet(wbKey, sheetName);
+
+            // If student's sheet is missing, produce one failing row per rule.
             if (wsS is null)
             {
                 foreach (var rule in spec.Checks)
                 {
-                    var id = rule.Cell ?? rule.Range ?? sheetName;
-                    results.Add(new CheckResult($"{rule.Type}:{id}", rule.Points, 0, false,
-                        $"Sheet '{sheetName}' missing"));
+                    var sec = string.IsNullOrWhiteSpace(rule.Section) ? "(No section)" : rule.Section.Trim();
+                    var name = $"{rule.Type}:{(rule.Cell ?? rule.Range ?? sheetName)}";
+                    var msg = $"Sheet '{sheetName}' not found in student workbook.";
+                    var res = new CheckResult(name, rule.Points, 0, false, msg);
+                    results.Add((res, sec, sheetName));
                 }
                 continue;
             }
 
-            var wsK = FindWorksheet(wbKey, sheetName);
-
             // ---- compute order
             IEnumerable<Rule> orderedChecks = spec.Checks;
 
-            // normalize names used as keys
-            string Norm(string? s) => string.IsNullOrWhiteSpace(s) ? "(No section)" : s.Trim();
+            static string Norm(string? s) => string.IsNullOrWhiteSpace(s) ? "(No section)" : s.Trim();
 
-            // Prefer per-sheet; else fall back to global meta.sectionOrder
-            var order = spec.SectionOrder?.Count > 0
+            // Prefer per-sheet order; else fall back to global meta.sectionOrder
+            var order = (spec.SectionOrder is { Count: > 0 })
                 ? spec.SectionOrder
                 : rubric.Meta?.SectionOrder;
 
@@ -67,26 +70,43 @@ public static partial class Grader
                 orderedChecks = spec.Checks
                     .Select((r, i) => (r, i))
                     .OrderBy(t => Rank(t.r))       // section order
-                    .ThenBy(t => t.i)              // stable within a section
+                    .ThenBy(t => t.i)              // stable within section
                     .Select(t => t.r);
             }
 
+            // Grade each rule and attach section/sheet
             foreach (var rule in orderedChecks)
-                results.Add(DispatchRule(rule, wbStudent, wbKey, wsS, wsK));
+            {
+                var sec = string.IsNullOrWhiteSpace(rule.Section) ? "(No section)" : rule.Section.Trim();
+                var res = DispatchRule(rule, wbStudent, wbKey, wsS, wsK);
+
+                // If no name was set by the grader, set a sensible default via 'with'
+                if (string.IsNullOrWhiteSpace(res.Name))
+                {
+                    var defaultName = $"{rule.Type}:{(rule.Cell ?? rule.Range ?? "?")}";
+                    res = res with { Name = defaultName };
+                }
+
+                results.Add((res, sec, sheetName));
+            }
         }
 
-        var totalEarned = results.Sum(r => r.Earned);
+        var totalEarned = results.Sum(t => t.res.Earned);
         if (rubric.Scoring?.RoundTo is double roundTo)
             totalEarned = Math.Round(totalEarned, (int)Math.Round(roundTo));
 
-        var reportRows = results.Select(r =>
+        // Build API rows including section/sheet for correct grouping on the frontend
+        var reportRows = results.Select(t =>
         {
+            var r = t.res;
             var obj = new Dictionary<string, object?>
             {
                 ["check"] = r.Name,
                 ["points"] = r.Points,
                 ["earned"] = r.Earned,
-                ["passed"] = r.Passed
+                ["passed"] = r.Passed,
+                ["section"] = t.section,
+                ["sheet"] = t.sheet
             };
             if (rubric.Report?.IncludeComments != false) obj["comment"] = r.Comment;
             if (rubric.Report?.IncludePassFailColumn != false) obj["status"] = r.Passed ? "PASS" : "FAIL";
