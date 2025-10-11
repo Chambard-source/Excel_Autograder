@@ -1328,6 +1328,25 @@
                 .forEach(b => (b.checked = false));
         }
 
+        function ensureArray(obj, key) {
+            obj[key] = Array.isArray(obj[key]) ? obj[key] : [];
+            return obj[key];
+        }
+
+        function registerSection(name, sheetName) {
+            // global order
+            rubric.meta = rubric.meta || {};
+            const globalOrder = ensureArray(rubric.meta, 'sectionOrder');
+            if (!globalOrder.includes(name)) globalOrder.push(name);
+
+            // per-sheet order
+            const sheet = rubric.sheets?.[sheetName];
+            if (sheet) {
+                sheet.section_order = Array.isArray(sheet.section_order) ? sheet.section_order : [];
+                if (!sheet.section_order.includes(name)) sheet.section_order.push(name);
+            }
+        }
+
         // ---- hook buttons
         document.getElementById('btnMoveToSection').onclick = () => {
             const sel = Array.from(UI.selected || []);
@@ -1335,25 +1354,34 @@
 
             let dest = document.getElementById('moveToSection').value;
             if (!dest) return;
-
             if (dest === '__new__') {
                 const name = prompt('Name for new section:');
                 if (!name) return;
-                dest = name;
+                dest = name.trim();
             }
 
-            // update section for any selected rule (by id)
-            for (const spec of Object.values(rubric.sheets || {})) {
+            const touchedSheets = new Set();
+
+            for (const [sheetName, spec] of Object.entries(rubric.sheets || {})) {
                 const checks = spec.checks || [];
                 for (const r of checks) {
-                    if (UI.selected.has(r.__id)) r.section = dest;
+                    if (UI.selected.has(r.__id)) {
+                        r.section = dest;
+                        touchedSheets.add(sheetName);
+                    }
                 }
             }
 
-            // clear selection and re-render everything (main + rail + JSON + pickers)
+            // ensure the section is listed for ordering
+            for (const sName of touchedSheets) registerSection(dest, sName);
+
             UI.selected.clear();
-            render();
+            render();              // refresh main + rail
+            refreshMovePicker();   // update the section picker
+            refreshJsonPreview();  // preview JSON reflects new orders
         };
+
+
         document.getElementById('btnClearSelection').onclick = () => {
             UI.selected.clear();
             render();
