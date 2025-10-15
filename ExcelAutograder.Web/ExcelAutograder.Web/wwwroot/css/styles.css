@@ -1,0 +1,737 @@
+
+
+        :root {
+            --bg: #0b0f14;
+            --panel: #121822;
+            --muted: #1c2430;
+            --ink: #e7ecf3;
+            --ink2: #b8c0cc;
+            --accent: #4aa3ff;
+            --content-max: 1160px;
+            --gutter: clamp(12px, 2vw, 24px);
+        }
+
+        html, body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font: 14px/1.4 system-ui, Segoe UI, Roboto, Helvetica, Arial;
+        }
+
+        h1 {
+            font-weight: 700;
+            letter-spacing: .3px;
+            margin: 18px 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        .wrap {
+            max-width: var(--content-max);
+            margin-inline: auto; /* center */
+            padding-inline: var(--gutter);
+            box-sizing: border-box;
+        }
+
+        /* ---------- Grid rows ---------- */
+        .row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: clamp(12px, 2vw, 24px);
+        }
+
+            /* TOP PAIR ONLY: enforce a visible gap and sane min width */
+            .row.row-top {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px !important; /* guaranteed gutter */
+            }
+                /* allow children to shrink rather than push across the gap */
+                .row.row-top > * {
+                    min-width: 0;
+                }
+
+        /* stack on smaller viewports */
+        @media (max-width: 1024px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .result-section-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: .5rem .75rem;
+            font-weight: 600;
+            background: var(--panel, #0e0f12);
+            border-top: 1px solid rgba(255,255,255,.08);
+        }
+
+        .result-section-body {
+            max-height: 60vh; /* adjust to taste */
+            overflow: auto;
+            padding: .25rem .5rem 1rem;
+        }
+
+        /* ---------- Cards ---------- */
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--muted);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .builder-main {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card, .builder-card, #resultsCard {
+            width: 100%;
+            max-width: 100%;
+            margin-inline: 0;
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .hstack {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        label small {
+            color: var(--ink2);
+        }
+
+        input[type="text"], input[type="number"], textarea, select {
+            background: #0e131b;
+            border: 1px solid var(--muted);
+            border-radius: 8px;
+            color: var(--ink);
+            padding: 8px 10px;
+            outline: none;
+            min-width: 0;
+        }
+
+        input[type="file"] {
+            color: var(--ink2);
+        }
+
+        textarea {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            resize: vertical;
+        }
+
+        #jsonBox {
+            width: 100%;
+            min-height: clamp(160px, 24vh, 220px);
+        }
+
+        button {
+            background: #1a2230;
+            border: 1px solid #263041;
+            color: var(--ink);
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+            button.primary {
+                background: var(--accent);
+                border-color: transparent;
+                color: #06131f;
+            }
+
+            button.danger {
+                background: #3b1a1a;
+                border-color: #5b2a2a;
+            }
+
+            button.ghost {
+                background: #0e131b;
+            }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .sheet {
+            border: 1px dashed #2b3748;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+
+        .rule {
+            border: 1px solid #2b3748;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 10px 0;
+            background: #0f1520;
+        }
+
+            /* FLEX layout for the first row */
+            .rule .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center; /* prevents tall stretch */
+            }
+                /* make inputs/selects same height as the icon buttons */
+                .rule .row input[type="text"],
+                .rule .row input[type="number"],
+                .rule .row select {
+                    height: 36px;
+                    padding: 0 12px;
+                    line-height: 36px;
+                }
+
+        /* small, uniform arrow buttons (you already added .btn-icon) */
+        button.ghost.btn-icon {
+            flex: 0 0 auto;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            font-size: 16px;
+            border-radius: 8px;
+        }
+
+        /* reserve a slim column for the arrows */
+        .rule .row .arrows {
+            flex: 0 0 44px;
+        }
+
+        /* Section width that grows but doesn’t explode */
+        .rule .row .labelled.section {
+            min-width: 260px;
+            flex: 1 0 320px;
+        }
+
+        #jsonFilename {
+            height: 36px;
+            padding: 0 12px;
+            line-height: 36px;
+        }
+
+        .builder-card {
+            width: 100%;
+        }
+
+            .builder-card.collapsed .builder-grid {
+                display: none;
+            }
+
+            .builder-card.collapsed .hr {
+                display: none;
+            }
+
+        .section-header {
+            font-weight: 600;
+            margin-top: 10px;
+            padding: 6px 8px;
+            border-top: 1px solid #2c2f36;
+            background: rgba(255,255,255,.03);
+        }
+
+        .rule-row {
+            display: grid;
+            grid-template-columns: 22px 120px 80px 1fr;
+            gap: 8px;
+            align-items: center;
+            padding: 6px 0;
+        }
+
+            .rule-row .mono {
+                font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* ---------- Table rule preview polish ---------- */
+        .preview-card {
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            padding: 10px;
+            background: #0b0b0f;
+        }
+
+        .preview-title {
+            font-size: 12px;
+            color: #9aa0a6;
+            margin-bottom: 6px;
+        }
+
+        .chips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 10px;
+        }
+
+        .chips-col .head {
+            font-size: 12px;
+            color: #b9c1c8;
+            margin-bottom: 4px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            font-size: 11px;
+            padding: 2px 8px;
+            border: 1px solid #2a2a2a;
+            background: #11151a;
+            border-radius: 999px;
+            color: #d9dee3;
+        }
+
+        .scroll-wrap {
+            max-height: 220px;
+            overflow: auto;
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
+        }
+
+        .mini-table {
+            width: max-content;
+            max-width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 12px;
+        }
+
+            .mini-table thead th {
+                position: sticky;
+                top: 0;
+                background: #0f1216;
+                color: #cbd3da;
+                text-align: left;
+                border-bottom: 1px solid #2a2a2a;
+                padding: 6px 8px;
+            }
+
+            .mini-table tbody td {
+                padding: 6px 8px;
+                border-bottom: 1px dashed #1f2429;
+                color: #e6eaee;
+            }
+
+            .mini-table tbody tr:nth-child(even) td {
+                background: #0d1015;
+            }
+
+        /* Builder layout with a sticky right rail */
+        .builder-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        /* On wider screens, show a right column for the rail */
+        @media (min-width: 1100px) {
+            .builder-grid {
+                grid-template-columns: 1fr 320px; /* main | rail width */
+                align-items: start;
+            }
+
+            .rules-rail {
+                position: sticky;
+                top: 12px; /* how far from top it sticks */
+            }
+        }
+
+        /* Make the rail controls stack nicely */
+        #rulesToolbar.stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #rulesToolbar select,
+        #rulesToolbar button {
+            width: 100%;
+        }
+
+        /* --- Section groups --- */
+        .section-group {
+            border: 1px solid #2b3748;
+            border-radius: 10px;
+            margin: 10px 0 14px;
+            background: #0f1520;
+            overflow: hidden;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #121822;
+            border-bottom: 1px solid #223046;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .section-header .chev {
+                font-size: 12px;
+                opacity: .75;
+                width: 1.25em;
+                text-align: center;
+            }
+
+            .section-header .title {
+                font-weight: 600;
+            }
+
+            .section-header .badge {
+                margin-left: auto;
+                font-size: 12px;
+                padding: 2px 8px;
+                border-radius: 999px;
+                background: #1f2937;
+                border: 1px solid #2a3647;
+                color: #b8c0cc;
+            }
+
+        .section-body {
+            padding: 8px 10px;
+        }
+
+        .section-group.collapsed .section-body {
+            display: none;
+        }
+
+        .section-group.collapsed .chev {
+            transform: rotate(-90deg);
+        }
+
+        /* Compact mode for dense lists */
+        .dense .section-body .rule-row {
+            padding: 4px 0;
+        }
+
+        .dense .rule-row {
+            gap: 6px
+        }
+
+            .dense .rule-row input[type="checkbox"] {
+                margin-right: 4px
+            }
+
+        /* Sticky/float Sections dock */
+        #sectionsDock {
+            position: fixed;
+            right: 18px;
+            top: 140px;
+            width: 240px;
+            max-height: 60vh;
+            overflow: auto;
+            background: var(--panel);
+            border: 1px solid var(--muted);
+            border-radius: 10px;
+            box-shadow: 0 6px 18px rgba(0,0,0,.35);
+            z-index: 40;
+            padding: 10px;
+        }
+
+            #sectionsDock.hidden {
+                display: none;
+            }
+
+            #sectionsDock h4 {
+                margin: 4px 0 8px;
+                font-size: 13px;
+                color: var(--ink2)
+            }
+
+            #sectionsDock .item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 6px 8px;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+
+                #sectionsDock .item:hover {
+                    background: #0e131b
+                }
+
+            #sectionsDock .count {
+                font-size: 12px;
+                opacity: .8
+            }
+
+        #toggleSectionsDock {
+            position: fixed;
+            right: 18px;
+            top: 100px;
+            z-index: 41;
+            background: #1a2230;
+            border: 1px solid #263041;
+            border-radius: 999px;
+            padding: 6px 10px;
+        }
+
+        /* Right-rail collapsible sheets */
+        .rail-sheet {
+            border: 1px solid var(--muted);
+            border-radius: 10px;
+            background: #0f1520;
+            overflow: hidden;
+        }
+
+            .rail-sheet + .rail-sheet {
+                margin-top: 10px;
+            }
+
+        .rail-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: #121822;
+            border-bottom: 1px solid #223046;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .rail-head .chev {
+                width: 16px;
+                text-align: center;
+                font-weight: 700;
+                opacity: .7;
+            }
+
+            .rail-head .count {
+                font-size: 12px;
+                padding: 2px 8px;
+                border-radius: 999px;
+                border: 1px solid #2a3647;
+                background: #1f2937;
+            }
+
+        .rail-body {
+            max-height: 300px;
+            overflow: auto;
+            padding: 6px 8px;
+        }
+
+        /* Right rail: stick + own scrollbar */
+        @media (min-width: 1100px) {
+            .rules-rail > .card {
+                max-height: calc(100vh - 24px);
+                overflow: auto;
+            }
+        }
+
+        /* collapsed state */
+        .rail-sheet.collapsed .rail-body {
+            display: none;
+        }
+
+        .rail-sheet.collapsed .chev {
+            transform: rotate(-90deg);
+        }
+
+        /* compact rows inside the rail (uses your existing list renderer) */
+        .rail-body .section-header {
+            margin: 8px 0 4px;
+            border-top: none;
+            background: transparent;
+            padding: 2px 4px;
+            color: var(--ink2);
+        }
+
+        /* Collapsible sections in compact rule list */
+        .section-group {
+            margin: 10px 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            background: rgba(255,255,255,.03);
+            border: 1px solid #2a3647;
+            cursor: pointer;
+            user-select: none;
+        }
+
+            .section-header .chev {
+                font-weight: 700;
+                width: 12px;
+                text-align: center;
+                opacity: .8;
+            }
+
+            .section-header .count {
+                margin-left: auto;
+                font-size: 12px;
+                color: var(--ink2);
+            }
+
+        .section-group.collapsed .rule-row {
+            display: none;
+        }
+
+        .section-group.collapsed .section-header .chev {
+            transform: rotate(-90deg);
+        }
+
+        .td-num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .muted {
+            color: #9aa0a6;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        }
+
+        #resultsCard {
+            width: 100%;
+        }
+
+        .section-row td {
+            background: #0e151f;
+            border-top: 2px solid #263041;
+        }
+
+        .tiny {
+            font-size: 12px;
+            color: var(--ink2);
+        }
+
+        .pill {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #1f2937;
+            border: 1px solid #2a3647;
+        }
+
+        .spacer {
+            height: 8px;
+        }
+
+        .right {
+            margin-left: auto;
+        }
+
+        .hr {
+            height: 1px;
+            background: #223046;
+            margin: 12px 0;
+        }
+
+        .checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #263041;
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+
+        th {
+            background: #0e151f;
+            font-weight: 600;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+        }
+
+        .pass {
+            background: #103a22;
+            border: 1px solid #1e6d42;
+            color: #c8f7dc;
+        }
+
+        .fail {
+            background: #3a1010;
+            border: 1px solid #6d1e1e;
+            color: #f7c8c8;
+        }
+
+        .partial {
+            background: #3a290f;
+            border: 1px solid #7a5a1a;
+            color: #ffe0a6;
+        }
+
+        #resultsCard.only-misses [data-status="pass"] {
+            display: none !important;
+        }
+
+        /* --- Section Order UI (added) --- */
+        #sectionOrder .order-row {
+            display: flex;
+            flex-wrap: wrap; /* allow wrapping so buttons don't clip */
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--muted);
+            background: #0f1520;
+            border-radius: 10px;
+            padding: 8px 10px;
+        }
+
+            /* Let the section name take remaining space but also shrink on small rails */
+            #sectionOrder .order-row .name {
+                flex: 1 1 140px; /* grow, shrink, min width */
+                min-width: 0; /* enables ellipsis if you add it later */
+                font-weight: 600;
+            }
+
+            /* Stack/multi-line button group when tight */
+            #sectionOrder .order-row .btns {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+                /* Make the little arrow & remove buttons tighter */
+                #sectionOrder .order-row .btns .ghost {
+                    padding: 4px 8px;
+                    line-height: 1.1;
+                }
+    
