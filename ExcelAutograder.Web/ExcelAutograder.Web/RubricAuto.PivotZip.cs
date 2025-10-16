@@ -6,11 +6,39 @@ using System.Xml.Linq;
 
 public static partial class RubricAuto
 {
-
     /// <summary>
-    /// Parse the KEY workbook ZIP to discover pivot tables and emit pivot_layout rules
-    /// keyed by sheet name.
+    /// Scans an <c>.xlsx</c> workbook (provided as raw ZIP bytes) to discover all PivotTables
+    /// and emits <c>pivot_layout</c> rules grouped by sheet name for rubric generation.
     /// </summary>
+    /// <param name="keyZipBytes">
+    /// The raw bytes of the Excel workbook ZIP (i.e., the entire <c>.xlsx</c> file).
+    /// </param>
+    /// <returns>
+    /// A dictionary keyed by sheet name, where each value is a list of <see cref="Rule"/>
+    /// objects describing expected pivot layouts (rows, columns, filters, values).
+    /// Returns an empty map if no workbook or pivot content is found.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// This routine parses these parts:
+    /// <list type="bullet">
+    /// <item><description><c>xl/workbook.xml</c> for sheet order and PivotCache refs</description></item>
+    /// <item><description><c>xl/_rels/workbook.xml.rels</c> to resolve pivot cache definition targets</description></item>
+    /// <item><description><c>xl/pivotCache/pivotCacheDefinition*.xml</c> for source field names</description></item>
+    /// <item><description><c>xl/worksheets/_rels/sheetN.xml.rels</c> to locate PivotTableDefinition files per sheet</description></item>
+    /// <item><description><c>xl/pivotTables/pivotTableDefinition*.xml</c> for layout: row/col/page fields &amp; data fields</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Value aggregation is normalized to one of: <c>sum</c>, <c>count</c>, <c>average</c>, <c>min</c>, <c>max</c>.
+    /// For each value, both the display caption (e.g., "Sum of Sales") and the source field (via cache field index)
+    /// are captured (requires a <c>string? Source</c> on <see cref="PivotValueSpec"/>).
+    /// </para>
+    /// <para>
+    /// This method is resilient: missing parts are skipped; malformed indices fall back to placeholders like
+    /// <c>Field{index}</c>. Distinct lists are produced case-insensitively for rows/columns/filters.
+    /// </para>
+    /// </remarks>
     internal static Dictionary<string, List<Rule>> ExtractPivotRulesFromZip(byte[] keyZipBytes)
     {
         // sheetName -> rules
@@ -98,12 +126,14 @@ public static partial class RubricAuto
 
             foreach (var target in relTargets)
             {
+                // Resolve target to a full ZIP path that exists.
                 var full = target!.StartsWith("/")
                              ? target.TrimStart('/')
                              : target.StartsWith("../")
                                 ? "xl/" + target.Replace("../", "")
                                 : "xl/worksheets/" + target;
 
+                // Normalize to xl/pivotTables/... if the rel target is relative to a worksheet folder
                 if (full.Contains("/pivotTables/", StringComparison.OrdinalIgnoreCase))
                 {
                     var pos = full.IndexOf("/pivotTables/", StringComparison.OrdinalIgnoreCase);
@@ -126,6 +156,12 @@ public static partial class RubricAuto
                 var pivotFields = def.Element(ns + "pivotFields")?.Elements(ns + "pivotField").ToList()
                                    ?? new List<XElement>();
 
+                /// <summary>
+                /// Resolves a display name for a field index:
+                /// 1) <c>pivotField@name</c> if present
+                /// 2) cache field name (source column) by index
+                /// 3) fallback <c>Field{index}</c>
+                /// </summary>
                 string NameByIndex(int fi)
                 {
                     // 1) pivotField @name if present
@@ -145,14 +181,17 @@ public static partial class RubricAuto
                     return $"Field{fi}";
                 }
 
+                // Rows
                 var rows = new List<string>();
                 foreach (var rf in def.Element(ns + "rowFields")?.Elements(ns + "field") ?? Enumerable.Empty<XElement>())
                     if (int.TryParse((string?)rf.Attribute("x"), out var fi)) rows.Add(NameByIndex(fi));
 
+                // Columns
                 var cols = new List<string>();
                 foreach (var cf in def.Element(ns + "colFields")?.Elements(ns + "field") ?? Enumerable.Empty<XElement>())
                     if (int.TryParse((string?)cf.Attribute("x"), out var fi)) cols.Add(NameByIndex(fi));
 
+                // Filters (aka PageFields)
                 var filters = new List<string>();
                 foreach (var pf in def.Element(ns + "pageFields")?.Elements(ns + "pageField") ?? Enumerable.Empty<XElement>())
                     if (int.TryParse((string?)pf.Attribute("fld"), out var fi)) filters.Add(NameByIndex(fi));
@@ -172,7 +211,7 @@ public static partial class RubricAuto
                                : subtotal.Contains("max") ? "max"
                                : "sum";
 
-                    // prefer caption if present; else synthesize "Sum of X"
+                    // Prefer caption if present; else synthesize "Sum of X"
                     if (string.IsNullOrWhiteSpace(caption) && !string.IsNullOrWhiteSpace(src))
                         caption = $"{char.ToUpper(agg[0]) + agg[1..]} of {src}";
 
@@ -180,10 +219,11 @@ public static partial class RubricAuto
                     {
                         Field = caption ?? "Value",
                         Agg = agg,
-                        Source = src   // <-- add this property to your PivotValueSpec (string? Source)
+                        Source = src   // <-- requires PivotValueSpec to have: public string? Source { get; set; }
                     });
                 }
 
+                // Build rule
                 var rule = new Rule
                 {
                     Type = "pivot_layout",
@@ -207,5 +247,4 @@ public static partial class RubricAuto
 
         return map;
     }
-
 }

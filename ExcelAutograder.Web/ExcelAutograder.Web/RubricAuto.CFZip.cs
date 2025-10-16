@@ -6,9 +6,20 @@ using System.Xml.Linq;
 public static partial class RubricAuto
 {
     /// <summary>
-    /// Parse the KEY workbook ZIP to discover conditional formats and emit rules
-    /// (type "conditional_format") keyed by sheet name.
+    /// Scans the key workbook’s XLSX ZIP for conditional formatting definitions and
+    /// emits rubric rules of type <c>"conditional_format"</c>, grouped by sheet name.
     /// </summary>
+    /// <param name="keyZipBytes">Raw XLSX (ZIP) bytes for the key workbook.</param>
+    /// <returns>
+    /// A dictionary mapping sheet name → list of <see cref="Rule"/> objects describing
+    /// conditional formatting expectations (range, type, operator, formulas, text, fill color).
+    /// </returns>
+    /// <remarks>
+    /// This inspects <c>xl/workbook.xml</c> to enumerate sheets, then for each sheet reads
+    /// <c>xl/worksheets/sheetN.xml</c> and its <c>&lt;conditionalFormatting&gt;</c> blocks.
+    /// If present, <c>xl/styles.xml</c> is used to resolve <c>dxfId</c> to an RGB fill (alpha stripped).
+    /// Only the first range in <c>sqref</c> is captured for each rule.
+    /// </remarks>
     internal static Dictionary<string, List<Rule>> ExtractConditionalRulesFromZip(byte[] keyZipBytes)
     {
         var map = new Dictionary<string, List<Rule>>(StringComparer.OrdinalIgnoreCase);
@@ -46,6 +57,7 @@ public static partial class RubricAuto
                     var frms = ruleEl.Elements(S("formula")).Select(e => e.Value?.Trim()).ToList();
                     var txt = (string?)ruleEl.Attribute("text");
 
+                    // Resolve fill color from styles (if a dxf is referenced)
                     string? fillRgb = null;
                     var dxfIdAttr = ruleEl.Attribute("dxfId");
                     if (stylesXml != null && dxfIdAttr != null && int.TryParse(dxfIdAttr.Value, out var dxfId))
@@ -56,7 +68,7 @@ public static partial class RubricAuto
                             var dxf = dxfs[dxfId];
                             fillRgb = dxf.Element(S("fill"))?.Element(S("patternFill"))?.Element(S("fgColor"))?.Attribute("rgb")?.Value
                                    ?? dxf.Element(S("fill"))?.Element(S("fgColor"))?.Attribute("rgb")?.Value;
-                            if (!string.IsNullOrWhiteSpace(fillRgb) && fillRgb.Length == 8) // often ARGB like FFxxxxxx
+                            if (!string.IsNullOrWhiteSpace(fillRgb) && fillRgb.Length == 8) // strip ARGB alpha (FFRRGGBB → RRGGBB)
                                 fillRgb = fillRgb.Substring(2);
                         }
                     }
@@ -87,6 +99,12 @@ public static partial class RubricAuto
         return map;
     }
 
+    /// <summary>
+    /// Maps SpreadsheetML operator tokens (e.g., <c>greaterThan</c>) to the compact tokens
+    /// the grader uses (e.g., <c>gt</c>).
+    /// </summary>
+    /// <param name="op">Raw operator string from <c>&lt;cfRule operator="…"/&gt;</c>.</param>
+    /// <returns>Compact operator code, or the original token if unknown.</returns>
     static string? MapXmlOp(string? op) => op switch
     {
         "greaterThan" => "gt",

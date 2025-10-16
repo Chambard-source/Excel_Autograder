@@ -7,9 +7,13 @@ using System.Xml.Linq;
 public static partial class RubricAuto
 {
     /// <summary>
-    /// Parse the KEY workbook ZIP to discover charts and emit rules
-    /// (type "chart") keyed by sheet name.
+    /// Scans the key workbook’s XLSX ZIP for embedded charts and produces
+    /// rubric <c>chart</c> rules keyed by sheet name.
     /// </summary>
+    /// <param name="keyZipBytes">Raw XLSX bytes for the key workbook.</param>
+    /// <returns>
+    /// Dictionary mapping sheet name → list of <see cref="Rule"/> objects describing chart expectations.
+    /// </returns>
     internal static Dictionary<string, List<Rule>> ExtractChartRulesFromZip(byte[] keyZipBytes)
     {
         var map = new Dictionary<string, List<Rule>>(StringComparer.OrdinalIgnoreCase);
@@ -54,6 +58,13 @@ public static partial class RubricAuto
         return map;
     }
 
+    /// <summary>
+    /// Parses an XLSX (ZIP) to discover charts on each worksheet by walking
+    /// <c>sheetX.xml.rels → drawingY.xml → drawingY.xml.rels → charts/chartZ.xml</c>.
+    /// Builds a minimal, normalized chart description used for auto rule generation.
+    /// </summary>
+    /// <param name="zipBytes">Raw XLSX bytes.</param>
+    /// <returns>Dictionary of sheet name → discovered charts with metadata.</returns>
     private static Dictionary<string, List<AutoChartInfo>> ParseChartsFromZipAuto(byte[] zipBytes)
     {
         var result = new Dictionary<string, List<AutoChartInfo>>(StringComparer.OrdinalIgnoreCase);
@@ -68,6 +79,7 @@ public static partial class RubricAuto
         XNamespace nsMain = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         XNamespace pkg = "http://schemas.openxmlformats.org/package/2006/relationships";
 
+        // Read a file inside the ZIP as text; returns empty string if missing.
         string ReadEntryText(string path)
         {
             var e = zip.GetEntry(path);
@@ -77,7 +89,7 @@ public static partial class RubricAuto
             return r.ReadToEnd();
         }
 
-        // 1) map sheet index -> sheet name (sheet1.xml → "Summary", etc.)
+        // 1) Map sheet index -> sheet name (e.g., sheet1.xml → "Summary")
         var wbTxt = ReadEntryText("xl/workbook.xml");
         if (string.IsNullOrEmpty(wbTxt)) return result;
         var wb = XDocument.Parse(wbTxt);
@@ -94,7 +106,7 @@ public static partial class RubricAuto
             }
         }
 
-        // 2) for each sheet rels → drawing → chart
+        // 2) For each sheet: rels → drawing(s) → chart parts
         for (int i = 1; i <= sheetIndexToName.Count; i++)
         {
             var sheetName = sheetIndexToName[i];
@@ -103,8 +115,10 @@ public static partial class RubricAuto
             if (string.IsNullOrEmpty(relsTxt)) continue;
 
             var rels = XDocument.Parse(relsTxt);
+
+            // Note: drawing relationships live under the *package* relationships namespace (pkg), not the officeDocument (rel)
             var drawingTargets = rels.Root?
-                .Elements(pkg + "Relationship")  // <— was rel + "Relationship"
+                .Elements(pkg + "Relationship")
                 .Where(r => ((string?)r.Attribute("Type"))?.EndsWith("/drawing") == true)
                 .Select(r => ((string?)r.Attribute("Target"))?.TrimStart('/').Replace("../", "xl/"))
                 .Where(t => !string.IsNullOrWhiteSpace(t))
@@ -117,13 +131,13 @@ public static partial class RubricAuto
                 if (string.IsNullOrEmpty(drTxt)) continue;
                 var drXml = XDocument.Parse(drTxt);
 
-                // drawing rels
+                // drawing rels (maps graphicFrame r:id → charts/chartN.xml)
                 var drRelsPath = drPath.Replace("xl/drawings/", "xl/drawings/_rels/") + ".rels";
                 var drRelsTxt = ReadEntryText(drRelsPath);
                 if (string.IsNullOrEmpty(drRelsTxt)) continue;
                 var drRels = XDocument.Parse(drRelsTxt);
 
-                // find c:chart r:id within graphicFrames
+                // Find each <xdr:graphicFrame> → <c:chart r:id="...">
                 var frames = drXml.Descendants(xdr + "graphicFrame").ToList();
                 foreach (var gf in frames)
                 {
@@ -131,11 +145,12 @@ public static partial class RubricAuto
                     var frameName = cNvPr?.Attribute("name")?.Value ?? "Chart";
 
                     var chartElem = gf.Descendants(a + "graphicData").Descendants(c + "chart").FirstOrDefault();
-                    var rid = chartElem?.Attribute(rel + "id")?.Value;
+                    var rid = chartElem?.Attribute(rel + "id")?.Value; // here the officeDocument rel namespace is used for the attribute
                     if (string.IsNullOrWhiteSpace(rid)) continue;
 
+                    // Resolve the r:id to the charts part via the drawing's .rels (package relationships)
                     var target = drRels.Root?
-                        .Elements(pkg + "Relationship")  // <— was rel + "Relationship"
+                        .Elements(pkg + "Relationship")
                         .FirstOrDefault(r => (string?)r.Attribute("Id") == rid)?
                         .Attribute("Target")?.Value;
 
@@ -152,14 +167,15 @@ public static partial class RubricAuto
                     var chDoc = XDocument.Parse(chTxt);
                     var info = new AutoChartInfo { Sheet = sheetName, Name = frameName };
 
+                    // Plot area & basic shape
                     var plotArea = chDoc.Descendants(c + "plotArea").FirstOrDefault();
-                    info.Type = DetectChartType(plotArea, c);   // or DetectChartType(plotArea) if your helper takes 1 arg
+                    info.Type = DetectChartType(plotArea, c);
 
-                    // Title
+                    // Title (text or sheet-linked)
                     var titleEl = chDoc.Descendants(c + "title").FirstOrDefault();
                     (info.Title, info.TitleRef) = ReadChartTextAuto(titleEl, c, a);
 
-                    // Axis titles
+                    // Axis titles if present
                     var catAx = plotArea?.Elements(c + "catAx").FirstOrDefault();
                     var valAx = plotArea?.Elements(c + "valAx").FirstOrDefault();
                     (info.XTitle, _) = ReadChartTextAuto(catAx?.Element(c + "title"), c, a);
@@ -170,7 +186,7 @@ public static partial class RubricAuto
                     info.LegendPos = leg?.Element(c + "legendPos")?.Attribute("val")?.Value;
                     info.DataLabels = plotArea?.Descendants(c + "dLbls").Any() == true;
 
-                    // Series
+                    // Series: name, categories, values (string/number refs)
                     foreach (var ser in plotArea?.Descendants().Where(e => e.Name.LocalName == "ser") ?? Enumerable.Empty<XElement>())
                     {
                         var si = new AutoSeriesInfo();
@@ -196,7 +212,13 @@ public static partial class RubricAuto
 
         return result;
 
-        // ---- helpers ----
+        /// <summary>
+        /// Reads either rich text or a sheet-linked reference from a chart <c>tx</c>-like node.
+        /// </summary>
+        /// <param name="node">The parent node that contains <c>c:tx</c>, or the title node itself.</param>
+        /// <param name="cns">Chart namespace.</param>
+        /// <param name="ans">DrawingML text namespace.</param>
+        /// <returns>(Plain text if embedded, A1 ref if linked)</returns>
         static (string? txt, string? cellRef) ReadChartTextAuto(XElement? node, XNamespace cns, XNamespace ans)
         {
             if (node == null) return (null, null);
@@ -215,6 +237,12 @@ public static partial class RubricAuto
         }
     }
 
+    /// <summary>
+    /// Normalizes the plot area into a coarse chart type string (e.g., <c>column</c>, <c>bar</c>, <c>pie3D</c>).
+    /// </summary>
+    /// <param name="plotArea">The chart’s <c>plotArea</c> element.</param>
+    /// <param name="c">Chart XML namespace.</param>
+    /// <returns>Lowercase type token; empty string if unknown.</returns>
     private static string DetectChartType(System.Xml.Linq.XElement? plotArea, System.Xml.Linq.XNamespace c)
     {
         if (plotArea == null) return "";
@@ -238,17 +266,29 @@ public static partial class RubricAuto
 
 
     // --------------------- CHART RULES (auto from key) ---------------------
+
+    /// <summary>
+    /// Lightweight chart metadata captured from the XLSX parts
+    /// (enough to generate a rubric rule without binding to ClosedXML types).
+    /// </summary>
     private class AutoChartInfo
     {
+        /// <summary>Worksheet name where the chart is anchored.</summary>
         public string Sheet = "";
+        /// <summary>Frame name as shown in the drawing (e.g., "Chart 1").</summary>
         public string Name = "Chart";
-        public string Type = ""; // line/column/bar/pie/scatter/area/doughnut/radar/bubble
+        /// <summary>Normalized chart type token (e.g., line/column/bar/pie…)</summary>
+        public string Type = "";
         public string? Title, TitleRef;
         public string? LegendPos;
         public bool DataLabels;
         public string? XTitle, YTitle;
         public List<AutoSeriesInfo> Series = new();
     }
+
+    /// <summary>
+    /// Minimal series metadata: friendly name or reference, category and value ranges.
+    /// </summary>
     private class AutoSeriesInfo
     {
         public string? Name, NameRef, CatRef, ValRef;

@@ -1,10 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 
 public static partial class Grader
 {
+    /// <summary>
+    /// Maps OOXML conditional format operator tokens (e.g., <c>greaterThan</c>)
+    /// to the shorter rubric/operator codes used in your JSON (<c>gt</c>, <c>le</c>, etc.).
+    /// </summary>
+    /// <param name="op">The OOXML operator token from <c>cfRule@operator</c>.</param>
+    /// <returns>The normalized short token (e.g., <c>gt</c>), or the original string when unknown.</returns>
     private static string? MapXmlOp(string? op) => op switch
     {
         "greaterThan" => "gt",
@@ -18,7 +26,18 @@ public static partial class Grader
         _ => op
     };
 
-    private static CheckResult GradeConditionalFormat(Rule rule, XLWorkbook wbS) 
+    /// <summary>
+    /// Grades whether a specific Conditional Formatting rule exists on the student workbook.
+    /// Inspects raw OOXML (via cached student .xlsx bytes) to avoid ClosedXML limitations,
+    /// and compares against <see cref="Rule.Cond"/> (type, operator, formulas, text, fill color, range).
+    /// </summary>
+    /// <param name="rule">The rubric rule containing a <see cref="ConditionalFormatSpec"/>.</param>
+    /// <param name="wbS">Student workbook (used to seed cached .xlsx bytes).</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>conditional_format:{sheet}</c>, full points if a matching CF is found,
+    /// otherwise 0 with an explanation of what was expected and what was seen.
+    /// </returns>
+    private static CheckResult GradeConditionalFormat(Rule rule, XLWorkbook wbS)
     {
         EnsureStudentZipBytes(wbS);
         var pts = rule.Points;
@@ -40,6 +59,32 @@ public static partial class Grader
         return new CheckResult($"conditional_format:{sheetName}", pts, ok ? pts : 0, ok, note);
     }
 
+    /// <summary>
+    /// Searches the student's raw <c>.xlsx</c> (ZIP) for a conditional formatting rule
+    /// matching the given <see cref="ConditionalFormatSpec"/> without relying on ClosedXML’s CF APIs.
+    /// </summary>
+    /// <param name="zipBytes">Raw bytes of the student workbook.</param>
+    /// <param name="sheetName">Target sheet name.</param>
+    /// <param name="spec">Expected conditional-format attributes to match.</param>
+    /// <param name="reason">On failure, a human-friendly explanation of why matching failed.</param>
+    /// <param name="matchedSummary">On success, a short diagnostic summary of the matched rule.</param>
+    /// <returns><c>true</c> if a matching rule is found; otherwise <c>false</c> with <paramref name="reason"/>.</returns>
+    /// <remarks>
+    /// Parses:
+    /// <list type="bullet">
+    ///   <item><description><c>xl/workbook.xml</c> to map sheet names → indices</description></item>
+    ///   <item><description><c>xl/worksheets/sheetN.xml</c> to enumerate <c>&lt;conditionalFormatting&gt;</c> blocks</description></item>
+    ///   <item><description><c>xl/styles.xml</c> to resolve <c>dxfId</c> → fill color (ARGB)</description></item>
+    /// </list>
+    /// Matching rules:
+    /// <list type="bullet">
+    ///   <item><description>Sheet &amp; range overlap (via <c>sqref</c>)</description></item>
+    ///   <item><description>Type (<c>rule.Type</c>) and operator (mapped via <see cref="MapXmlOp"/>)</description></item>
+    ///   <item><description>Formulas 1/2 (normalized: strip leading '=' and spaces)</description></item>
+    ///   <item><description>Contains-text for <c>text</c> attribute (when provided)</description></item>
+    ///   <item><description>Fill RGB suffix match (DXF ARGB → RGB, case-insensitive)</description></item>
+    /// </list>
+    /// </remarks>
     private static bool FindCFInStudentZip_NoClosedXml(
         byte[] zipBytes, string sheetName, ConditionalFormatSpec spec,
         out string reason, out string matchedSummary)
@@ -76,6 +121,7 @@ public static partial class Grader
             var stylesEntry = zip.GetEntry("xl/styles.xml");
             System.Xml.Linq.XDocument? stylesXml = stylesEntry != null ? System.Xml.Linq.XDocument.Load(stylesEntry.Open()) : null;
 
+            // Normalizes a formula string for comparison (trim, drop '=', remove spaces).
             static string Norm(string? s)
             {
                 if (string.IsNullOrWhiteSpace(s)) return "";
@@ -84,6 +130,7 @@ public static partial class Grader
                 return s.Replace(" ", "");
             }
 
+            // Resolve ARGB → RGB fill color from styles.xml dxfs[dxfId].
             string? ExtractFillRgb(System.Xml.Linq.XDocument? styles, int? dxfId)
             {
                 if (styles is null || dxfId is null || dxfId < 0) return null;
@@ -100,6 +147,7 @@ public static partial class Grader
             var seenSummaries = new List<string>();
             int totalRules = 0, overlapRules = 0;
 
+            // True if any sqref token intersects the expected A1 range (when provided).
             bool RangeOverlapsA1(string sqref, string? expectedRange)
             {
                 if (string.IsNullOrWhiteSpace(expectedRange)) return true;
@@ -143,6 +191,7 @@ public static partial class Grader
 
                     if (!string.IsNullOrWhiteSpace(spec.FillRgb) && !string.IsNullOrWhiteSpace(fillRgb))
                     {
+                        // Excel often stores ARGB; we strip alpha. Compare suffix to allow theme/alpha differences.
                         if (!fillRgb.EndsWith(spec.FillRgb!, StringComparison.OrdinalIgnoreCase)) continue;
                     }
 

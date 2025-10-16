@@ -9,9 +9,17 @@ using ClosedXML.Excel;
 
 public static partial class Grader
 {
-    // Central store for the student's XLSX bytes (used by chart/CF/pivot graders)
+    /// <summary>
+    /// Central store for the student's XLSX (zip) bytes for graders that need to inspect
+    /// the raw OOXML (charts, conditional formats, pivots). Scoped via <see cref="AsyncLocal{T}"/>.
+    /// </summary>
     private static readonly AsyncLocal<byte[]?> _zipBytes = new();
 
+    /// <summary>
+    /// Ensures <see cref="_zipBytes"/> is populated with the student's workbook bytes.
+    /// Safe to call multiple times; only saves when empty.
+    /// </summary>
+    /// <param name="wbS">Student workbook.</param>
     private static void EnsureStudentZipBytes(XLWorkbook wbS)
     {
         if (_zipBytes.Value != null) return;
@@ -21,6 +29,23 @@ public static partial class Grader
     }
 
     // ---- Entry point used by the web endpoint
+
+    /// <summary>
+    /// Grades a student workbook against a rubric using the provided key workbook.
+    /// Produces per-check results along with section and sheet metadata for UI grouping.
+    /// </summary>
+    /// <param name="wbKey">Key (instructor) workbook.</param>
+    /// <param name="wbStudent">Student workbook.</param>
+    /// <param name="rubric">Rubric definition to apply.</param>
+    /// <returns>
+    /// An object suitable for the API response containing:
+    /// <list type="bullet">
+    ///   <item><description><c>score_out_of_total</c> (string)</description></item>
+    ///   <item><description><c>score_numeric</c> (double)</description></item>
+    ///   <item><description><c>total_points</c> (double)</description></item>
+    ///   <item><description><c>details</c> (list of per-check rows with section/sheet/comment/status)</description></item>
+    /// </list>
+    /// </returns>
     public static object Run(XLWorkbook wbKey, XLWorkbook wbStudent, Rubric rubric)
     {
         // Keep result + section + sheet so the UI can group correctly.
@@ -122,7 +147,15 @@ public static partial class Grader
         };
     }
 
-    // Variant that lets the API pass pre-saved student xlsx bytes
+    /// <summary>
+    /// Overload that allows the API layer to supply already-saved student XLSX bytes.
+    /// This seeds <see cref="_zipBytes"/> for graders that need raw OOXML access.
+    /// </summary>
+    /// <param name="wbKey">Key workbook.</param>
+    /// <param name="wbStudent">Student workbook.</param>
+    /// <param name="rubric">Rubric definition.</param>
+    /// <param name="studentZipBytes">Raw <c>.xlsx</c> bytes for the student workbook (optional).</param>
+    /// <returns>Same response object as <see cref="Run(XLWorkbook, XLWorkbook, Rubric)"/>.</returns>
     public static object Run(XLWorkbook wbKey, XLWorkbook wbStudent, Rubric rubric, byte[]? studentZipBytes)
     {
         _zipBytes.Value = studentZipBytes;
@@ -131,6 +164,16 @@ public static partial class Grader
     }
 
     // ---- Router (kept here for discoverability)
+
+    /// <summary>
+    /// Routes a single <see cref="Rule"/> to the appropriate grader based on <c>rule.Type</c>.
+    /// </summary>
+    /// <param name="rule">The rubric rule to evaluate.</param>
+    /// <param name="wbS">Student workbook (some graders need workbook-level context).</param>
+    /// <param name="wbK">Key workbook (for key-based comparisons).</param>
+    /// <param name="wsS">Student worksheet (for cell/range rules).</param>
+    /// <param name="wsK">Key worksheet (optional; null when not present).</param>
+    /// <returns>A populated <see cref="CheckResult"/>.</returns>
     private static CheckResult DispatchRule(Rule rule, XLWorkbook wbS, XLWorkbook wbK, IXLWorksheet wsS, IXLWorksheet? wsK)
         => rule.Type.ToLowerInvariant() switch
         {

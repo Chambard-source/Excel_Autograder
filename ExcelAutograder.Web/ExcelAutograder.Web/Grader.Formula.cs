@@ -6,11 +6,43 @@ using ClosedXML.Excel;
 
 public static partial class Grader
 {
+    /// <summary>
+    /// Grades a formula in a student worksheet cell against allowed expectations.
+    /// Supports:
+    /// <list type="bullet">
+    ///   <item><description>Literal match (<see cref="Rule.ExpectedFormula"/>)</description></item>
+    ///   <item><description>Regex match (<see cref="Rule.ExpectedFormulaRegex"/>)</description></item>
+    ///   <item><description>Match the key workbook’s formula (<see cref="Rule.ExpectedFromKey"/>)</description></item>
+    ///   <item><description>Multiple options via <see cref="Rule.AnyOf"/></description></item>
+    ///   <item><description>Required absolute refs (<see cref="Rule.RequireAbsolute"/>)</description></item>
+    ///   <item><description>Value check via <c>ValueMatches</c> (must match expected value too)</description></item>
+    /// </list>
+    /// </summary>
+    /// <param name="rule">
+    /// The rubric rule defining the target cell, the expectations (single or <c>AnyOf</c>),
+    /// required absolutes, and points.
+    /// </param>
+    /// <param name="wsS">Student worksheet.</param>
+    /// <param name="wsK">Key worksheet (optional; required if using <c>ExpectedFromKey</c>).</param>
+    /// <returns>
+    /// A <see cref="CheckResult"/> awarding:
+    /// <list type="bullet">
+    ///   <item><description>Full credit if formula content matches and value matches.</description></item>
+    ///   <item><description>Half credit if value matches but formula content does not.</description></item>
+    ///   <item><description>Half credit if content matches but required absolutes are missing.</description></item>
+    ///   <item><description>Zero otherwise (with reasons).</description></item>
+    /// </returns>
+    /// <remarks>
+    /// The student’s raw formula (A1 then R1C1 fallback) is normalized via <c>NormalizeFormula</c>
+    /// before content comparisons. Expected absolutes are validated either against the expected
+    /// literal/key formula or via <see cref="MissingAbsoluteRefs(string)"/> for regex cases.
+    /// </remarks>
     private static CheckResult GradeFormula(Rule rule, IXLWorksheet wsS, IXLWorksheet? wsK)
     {
         var cellAddr = rule.Cell ?? throw new Exception("formula check missing 'cell'");
         var pts = rule.Points;
 
+        // Local helper: tries to parse a number possibly formatted with % or commas.
         static bool TryParseNumber(string s, out double v)
         {
             var raw = s.Trim();
@@ -28,6 +60,7 @@ public static partial class Grader
         var a1 = sCell.FormulaA1;
         var r1c1 = sCell.FormulaR1C1;
 
+        // If no formula at all, allow a value-only partial check, but no credit if formula is required.
         var hasRealFormula = sCell.HasFormula || (!string.IsNullOrWhiteSpace(a1) || !string.IsNullOrWhiteSpace(r1c1));
         if (!hasRealFormula)
         {
@@ -196,6 +229,7 @@ public static partial class Grader
             reasons.Add($"no expected provided ({origin})");
         }
 
+        // If we got here, content didn't match any path. Grant partial only if the value is correct.
         {
             var (valOk, valDetail) = ValueMatches(sCell, rule);
             if (valOk)
@@ -204,7 +238,7 @@ public static partial class Grader
                 var expectedBit = string.IsNullOrWhiteSpace(expectedHint) ? "" : $" | expected='{expectedHint}'";
                 return new CheckResult(
                     $"formula:{cellAddr}", pts, partial, false,
-                    $"value correct but formula incorrect{(string.IsNullOrWhiteSpace(valDetail) ? "" : $": {valDetail}")} | got formula '{sRaw}'{expectedBit}"
+                    $"value correct but formula incorrect{(string.IsNullOrWhiteSpace(valDetail) ? "" : ": " + valDetail)} | got formula '{sRaw}'{expectedBit}"
                 );
             }
         }
@@ -215,6 +249,13 @@ public static partial class Grader
 
     // ===== helpers kept with formula for locality =====
 
+    /// <summary>
+    /// Detects whether any absolute column or row references (e.g., <c>$A$1</c>) are present in a formula.
+    /// </summary>
+    /// <param name="formulaA1">A1 formula text.</param>
+    /// <returns>
+    /// <c>(any, col, row)</c> indicating presence of any absolute, absolute column(s), and absolute row(s).
+    /// </returns>
     private static (bool any, bool col, bool row) InspectAbsoluteRefs(string? formulaA1)
     {
         var f = formulaA1 ?? "";
@@ -223,6 +264,14 @@ public static partial class Grader
         return (col || row, col, row);
     }
 
+    /// <summary>
+    /// Finds cell references in an A1 formula that are not fully absolute (i.e., not <c>$Col$Row</c>).
+    /// </summary>
+    /// <param name="formulaA1">A1 formula text.</param>
+    /// <returns>
+    /// <c>(ok, missing)</c> where <c>ok</c> is true if all references are fully absolute,
+    /// and <c>missing</c> lists the tokens that are not (sheet prefixes removed).
+    /// </returns>
     private static (bool ok, List<string> missing) MissingAbsoluteRefs(string? formulaA1)
     {
         var text = formulaA1 ?? string.Empty;
@@ -245,6 +294,13 @@ public static partial class Grader
         return (missing.Count == 0, missing);
     }
 
+    /// <summary>
+    /// Extracts cell reference endpoints (with whether column/row are absolute) from an A1 formula.
+    /// </summary>
+    /// <param name="formulaA1">A1 formula text.</param>
+    /// <returns>
+    /// List of tuples: <c>(colAbs, rowAbs, token)</c> where <c>token</c> is the reference without any sheet prefix.
+    /// </returns>
     private static List<(bool colAbs, bool rowAbs, string token)> ExtractEndpoints(string? formulaA1)
     {
         var res = new List<(bool colAbs, bool rowAbs, string token)>();
@@ -263,6 +319,13 @@ public static partial class Grader
         return res;
     }
 
+    /// <summary>
+    /// Compares the expected and student formulas reference-by-reference and returns the tokens
+    /// where the student is missing absolutes that exist in the expected formula.
+    /// </summary>
+    /// <param name="expectedA1">Expected A1 formula (from literal or key).</param>
+    /// <param name="studentA1">Student A1 formula.</param>
+    /// <returns>Distinct list of tokens missing required absolutes.</returns>
     private static List<string> MissingAbsolutesFromExpected(string expectedA1, string studentA1)
     {
         var exp = ExtractEndpoints(expectedA1);

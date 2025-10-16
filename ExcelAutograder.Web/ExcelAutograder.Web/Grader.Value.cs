@@ -6,12 +6,34 @@ using ClosedXML.Excel;
 
 public static partial class Grader
 {
+    /// <summary>
+    /// Grades the value of a target cell against an expected value.
+    /// Supports (in priority order): expected-from-key, regex match, explicit option expected, rule-level expected.
+    /// Numeric values are compared within an absolute tolerance; otherwise string equality is used
+    /// with optional case sensitivity.
+    /// </summary>
+    /// <param name="rule">
+    /// Rule specifying:
+    /// <list type="bullet">
+    ///   <item><description><c>Cell</c> (A1 address)</description></item>
+    ///   <item><description><c>Points</c>, <c>Tolerance</c></description></item>
+    ///   <item><description><c>ExpectedFromKey</c> or <c>Expected</c> or <c>AnyOf[].Expected / .ExpectedRegex</c></description></item>
+    ///   <item><description><c>CaseSensitive</c> (optional)</description></item>
+    /// </list>
+    /// </param>
+    /// <param name="wsS">Student worksheet.</param>
+    /// <param name="wsK">Key worksheet (used when <c>ExpectedFromKey</c> is true).</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>value:{cell}</c>, full points if matched, else 0 with reason text.
+    /// </returns>
+    /// <exception cref="Exception">Thrown if <c>rule.Cell</c> is missing.</exception>
     private static CheckResult GradeValue(Rule rule, IXLWorksheet wsS, IXLWorksheet? wsK)
     {
         var cellAddr = rule.Cell ?? throw new Exception("value check missing 'cell'");
         var pts = rule.Points;
         var tol = rule.Tolerance ?? 0.0;
 
+        // Evaluates a single RuleOption path (regex / expected literal / expected from key).
         (bool ok, string reason) OneOption(RuleOption opt)
         {
             object? expected;

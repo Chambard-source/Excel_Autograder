@@ -7,8 +7,18 @@ using ClosedXML.Excel;
 public static partial class RubricAuto
 {
     /// <summary>
-    /// Decide which sheets to include based on the hint and the allSheets flag.
+    /// Chooses which worksheets to include from a workbook based on an optional name hint and an <c>all</c> flag.
     /// </summary>
+    /// <param name="wb">Workbook to search.</param>
+    /// <param name="hint">
+    /// Optional sheet hint. First tries exact name (case-insensitive), then substring match.
+    /// Ignored entirely if <paramref name="all"/> is true.
+    /// </param>
+    /// <param name="all">If true, returns all worksheets (ordered by position) regardless of the hint.</param>
+    /// <returns>
+    /// The resolved worksheets. If no hint match is found and <paramref name="all"/> is false,
+    /// falls back to common names (“Scores”, then “score”), else the first worksheet.
+    /// </returns>
     internal static IEnumerable<IXLWorksheet> ResolveSheets(XLWorkbook wb, string? hint, bool all)
     {
         // If user asked for all, return ALL sheets — ignore hint entirely.
@@ -36,9 +46,10 @@ public static partial class RubricAuto
     }
 
     /// <summary>
-    /// Normalize/ensure section order (if you compute it) and perform any per-sheet
-    /// cleanup needed right after assembling checks.
+    /// Normalizes a sheet's rule list by inferring sections, applying a configured section order,
+    /// and then sorting by (section rank → section name → type rank → A1 position → note).
     /// </summary>
+    /// <param name="sheet">Target <see cref="SheetSpec"/> to normalize in place.</param>
     internal static void NormalizeOrder(SheetSpec sheet)
     {
         if (sheet?.Checks == null) return;
@@ -68,8 +79,11 @@ public static partial class RubricAuto
     }
 
     /// <summary>
-    /// Rescales points to the requested total while preserving relative weights.
+    /// Rescales every rule's <c>Points</c> so that the rubric sums to <paramref name="targetTotal"/>,
+    /// preserving relative weights and rounding each rule to 3 decimals.
     /// </summary>
+    /// <param name="rub">Rubric to mutate.</param>
+    /// <param name="targetTotal">Desired total points for the rubric (must be &gt; 0).</param>
     internal static void RescalePoints(Rubric rub, double targetTotal)
     {
         if (rub is null || rub.Sheets is null || targetTotal <= 0) return;
@@ -90,11 +104,22 @@ public static partial class RubricAuto
         rub.Points = targetTotal;
     }
 
+    /// <summary>
+    /// True if <paramref name="text"/> contains any of the provided <paramref name="needles"/> (case-insensitive).
+    /// </summary>
     private static bool ContainsAny(string text, params string[] needles)
-    => needles.Any(n => text.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0);
+    => needles.Any(n => text.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0)
 
+    ;
+
+    /// <summary>
+    /// Returns true if the formula contains any absolute reference marker (<c>$</c>).
+    /// </summary>
     private static bool HasAbsoluteRef(string formula) => formula.IndexOf('$') >= 0;
 
+    /// <summary>
+    /// Normalizes a formula by trimming and ensuring it begins with '=' (no other canonicalization).
+    /// </summary>
     private static string NormalizeFormulaAuto(string? f)
     {
         var s = f?.Trim() ?? string.Empty;
@@ -102,6 +127,13 @@ public static partial class RubricAuto
         return s;
     }
 
+    /// <summary>
+    /// Attempts to produce the key cell's user-facing expected text:
+    /// prefers formatted text; if the cell has a formula, tries cached value;
+    /// otherwise falls back to invariant formatting by data type.
+    /// </summary>
+    /// <param name="kc">Key worksheet cell.</param>
+    /// <returns>Expected text or <c>null</c> if blank.</returns>
     private static string? KeyCellExpectedText(IXLCell kc)
     {
         // Try Excel’s displayed text first (respects number formats).
@@ -144,6 +176,10 @@ public static partial class RubricAuto
         }
     }
 
+    /// <summary>
+    /// Attempts to coerce an arbitrary object to an integer.
+    /// Accepts <c>int</c>, whole-valued <c>double</c>, and parses strings using invariant culture.
+    /// </summary>
     private static bool TryToInt(object? v, out int n)
     {
         if (v is int i) { n = i; return true; }
@@ -153,6 +189,11 @@ public static partial class RubricAuto
         return int.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out n);
     }
 
+    /// <summary>
+    /// Attempts to coerce an arbitrary object to a double.
+    /// Supports numeric primitives, <see cref="DateTime"/> (OADate), and string parsing
+    /// using invariant then current culture.
+    /// </summary>
     private static bool TryToDouble(object? v, out double d)
     {
         switch (v)
@@ -174,18 +215,36 @@ public static partial class RubricAuto
 
     // Reflection helpers: -------------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// Safely casts an object to an <see cref="IEnumerable{Object}"/> or returns an empty sequence.
+    /// Useful when reflecting properties that may be absent across library versions.
+    /// </summary>
     private static IEnumerable<object> AsEnum(object? obj)
         => (obj as System.Collections.IEnumerable)?.Cast<object>() ?? Enumerable.Empty<object>();
 
+    /// <summary>
+    /// Gets a string property value by name via reflection, or <c>null</c> if not found.
+    /// </summary>
     private static string? GetStrProp(object o, string name)
         => o.GetType().GetProperty(name)?.GetValue(o)?.ToString();
 
+    /// <summary>
+    /// Gets an enumerable property by name via reflection and returns it as <see cref="IEnumerable{Object}"/>.
+    /// Returns an empty sequence if the property or value is missing.
+    /// </summary>
     private static IEnumerable<object> GetEnumProp(object o, string name)
         => AsEnum(o.GetType().GetProperty(name)?.GetValue(o));
 
+    /// <summary>
+    /// Returns the first non-empty string from the provided candidates, or empty string if all are blank.
+    /// </summary>
     private static string FirstNonEmpty(params string?[] xs)
         => xs.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "";
 
+    /// <summary>
+    /// Normalizes aggregator names to canonical tokens: <c>sum</c>, <c>count</c>, <c>average</c>, <c>min</c>, <c>max</c>.
+    /// Defaults to <c>sum</c> when unknown/empty.
+    /// </summary>
     private static string NormAgg(string? raw)
     {
         var a = (raw ?? "").ToLowerInvariant();
@@ -199,12 +258,12 @@ public static partial class RubricAuto
 
     // Safely rescales every rule's points so the rubric totals to desiredTotal.
 
-
-    // Normalize any incoming address-ish string:
-    //   - takes "Sheet Name!$E$8" → "E8"
-    //   - takes "$E$8" → "E8"
-    //   - takes "E7:E18" → "E7"
-    //   - leaves "E8" as-is
+    /// <summary>
+    /// Normalizes an address-like string to a single A1 token without sheet prefix,
+    /// without absolute markers, and using the first corner for ranges.
+    /// Examples:
+    /// <c>Sheet Name!$E$8</c> → <c>E8</c>, <c>$E$8</c> → <c>E8</c>, <c>E7:E18</c> → <c>E7</c>.
+    /// </summary>
     private static string CleanA1(string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return "";
@@ -224,7 +283,9 @@ public static partial class RubricAuto
         return t;
     }
 
-    // Converts A1 to sortable (col,row); non-address → (Max,Max)
+    /// <summary>
+    /// Converts a normalized A1 token to a sortable key (column, row). Non-address returns (Max, Max).
+    /// </summary>
     private static (int col, int row) A1ToKey(string? a1Raw)
     {
         var a1 = CleanA1(a1Raw);
@@ -245,7 +306,10 @@ public static partial class RubricAuto
         return (col, row);
     }
 
-    // Helper: best A1 for a rule (cell first, else range’s first corner)
+    /// <summary>
+    /// Returns the best A1 key for a rule: the cell address if present, otherwise the first corner of <c>Range</c>.
+    /// Used for stable sorting.
+    /// </summary>
     private static (int col, int row) RuleA1Key(Rule r)
     {
         if (!string.IsNullOrWhiteSpace(r.Cell)) return A1ToKey(r.Cell);
@@ -253,7 +317,9 @@ public static partial class RubricAuto
         return (int.MaxValue, int.MaxValue);
     }
 
-    // Give common rule types a stable type-rank
+    /// <summary>
+    /// Maps common rule types to a stable sort rank (lower is earlier).
+    /// </summary>
     private static int TypeRank(string? t) => t?.ToLowerInvariant() switch
     {
         "format" => 0,
@@ -265,7 +331,10 @@ public static partial class RubricAuto
         _ => 5
     };
 
-    // Best-effort section inference so things cluster automatically
+    /// <summary>
+    /// Best-effort section inference for a rule, honoring an explicit <c>Section</c> when present,
+    /// and otherwise grouping by rule type, note, and light heuristics on expected formulas/cells.
+    /// </summary>
     private static string InferSection(Rule r)
     {
         // honor explicit section if author provided one
@@ -295,6 +364,11 @@ public static partial class RubricAuto
         return "Other";
     }
 
+    /// <summary>
+    /// Cleans an expected text value by normalizing whitespace:
+    /// converts NBSP to space, removes control characters (except CR/LF/TAB),
+    /// collapses repeated spaces, and trims.
+    /// </summary>
     private static string? CleanExpected(string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return s;

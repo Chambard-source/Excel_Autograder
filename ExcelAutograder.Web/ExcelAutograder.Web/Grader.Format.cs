@@ -6,12 +6,31 @@ using ClosedXML.Excel;
 
 public static partial class Grader
 {
+    /// <summary>
+    /// Coarse classification of Excel number formats used for rubric comparisons.
+    /// </summary>
     private enum NumFmtKind
     {
         Unknown, General, Number, Currency, Accounting, Percent, Scientific, Fraction, Text,
         DateShort, DateLong, Time, DateTime, Custom
     }
 
+    /// <summary>
+    /// Grades the formatting of a single cell (or delegates to range grading if only a range is provided).
+    /// Evaluates font (name/size/bold/italic), number format (type and decimals),
+    /// fill color, alignment (horizontal/vertical), and outline border.
+    /// </summary>
+    /// <param name="rule">
+    /// The format rule. Uses <c>rule.Cell</c> (or <c>rule.Range</c>), <c>rule.Points</c>,
+    /// <c>rule.Format</c>, and optionally <c>rule.AnyOf</c> for alternative format specs.
+    /// </param>
+    /// <param name="wsS">The student worksheet.</param>
+    /// <returns>
+    /// A <see cref="CheckResult"/> with id <c>format:{cellAddr}</c>, full points if all specified
+    /// attributes match, zero otherwise. If <c>rule.Range</c> is set and <c>rule.Cell</c> is empty,
+    /// this delegates to <c>GradeRangeFormat</c>.
+    /// </returns>
+    /// <exception cref="Exception">Thrown when neither <c>rule.Cell</c> nor a valid <c>rule.Range</c> is provided.</exception>
     private static CheckResult GradeFormat(Rule rule, IXLWorksheet wsS)
     {
         if (string.IsNullOrWhiteSpace(rule.Cell))
@@ -25,6 +44,7 @@ public static partial class Grader
         var pts = rule.Points;
         var cell = wsS.Cell(cellAddr);
 
+        // Adapter so AnyOfMatch can test each candidate FormatSpec against the same cell.
         (bool ok, string reason) OneFormat(RuleOption opt) =>
             FormatMatches(cell, opt.Format ?? rule.Format ?? new());
 
@@ -35,10 +55,26 @@ public static partial class Grader
         return new CheckResult($"format:{cellAddr}", pts, result.ok ? pts : 0, result.ok, result.reason);
     }
 
+    /// <summary>
+    /// Analyzes an Excel number format string and categorizes it, also extracting decimal precision when relevant.
+    /// </summary>
+    /// <param name="fmt">The raw number format string (e.g., <c>"$#,##0.00"</c>, <c>"0%"</c>, <c>"mm/dd/yyyy"</c>).</param>
+    /// <returns>
+    /// A tuple of:
+    /// <list type="bullet">
+    ///   <item><description><see cref="NumFmtKind"/> <c>Kind</c></description></item>
+    ///   <item><description><c>Decimals</c>: requested decimal places when applicable (Number/Currency/Percent/Accounting)</description></item>
+    ///   <item><description><c>Raw</c>: the original (trimmed) format string</description></item>
+    /// </list>
+    /// </returns>
     private static (NumFmtKind Kind, int? Decimals, string Raw) AnalyzeNumberFormat(string? fmt)
     {
         var raw = (fmt ?? "").Trim();
+
+        // Remove color/condition tokens like [Red], [>=100], etc.
         var f = Regex.Replace(raw, @"\[[^\]]*\]", "", RegexOptions.IgnoreCase);
+
+        // Consider only the positive section before ';'
         f = f.Split(';')[0].Trim();
 
         if (string.IsNullOrEmpty(f))
@@ -65,23 +101,42 @@ public static partial class Grader
         if (lower.Contains("?/") || lower.Contains("#/")) return (NumFmtKind.Fraction, null, raw);
         if (lower.Contains("@")) return (NumFmtKind.Text, null, raw);
 
+        // Generic number pattern detection (e.g., #,##0.00)
         if (Regex.IsMatch(lower, @"[#0](?:[#,]*[#0])?(?:\.(?<d>0+))?"))
             return (NumFmtKind.Number, GetDecimalPlaces(lower), raw);
 
+        // Anything else: treat as Custom (compare literally)
         return (NumFmtKind.Custom, null, raw);
     }
 
+    /// <summary>
+    /// Extracts the count of required decimal places (number of '0' after the first '.' in the format).
+    /// </summary>
+    /// <param name="patternLower">Lower-cased, single-section number format pattern.</param>
+    /// <returns>Number of decimal '0' placeholders, or <c>null</c> if none.</returns>
     private static int? GetDecimalPlaces(string patternLower)
     {
         var m = Regex.Match(patternLower.Split(';')[0], @"\.(0+)");
         return m.Success ? m.Groups[1].Value.Length : (int?)null;
     }
 
+    /// <summary>
+    /// Compares a cell's actual style to a desired <see cref="FormatSpec"/>.
+    /// Checks font (name/size/bold/italic), number format (kind and decimals or literal),
+    /// fill color (RGB), alignment (H/V), and outline border presence.
+    /// </summary>
+    /// <param name="c">The target cell.</param>
+    /// <param name="fmt">Desired format specification.</param>
+    /// <returns>
+    /// <c>(ok, reason)</c> where <c>ok</c> is true if all specified attributes match;
+    /// otherwise <c>reason</c> enumerates mismatched attributes.
+    /// </returns>
     private static (bool ok, string reason) FormatMatches(IXLCell c, FormatSpec fmt)
     {
         var reasons = new List<string>();
         var style = c.Style;
 
+        // ---- Font ----
         if (fmt.Font is not null)
         {
             if (fmt.Font.Name is not null && style.Font.FontName != fmt.Font.Name) reasons.Add("font name");
@@ -92,11 +147,13 @@ public static partial class Grader
         if (fmt.Bold is not null && style.Font.Bold != fmt.Bold.Value) reasons.Add("bold");
         if (fmt.Italic is not null && style.Font.Italic != fmt.Italic.Value) reasons.Add("italic");
 
+        // ---- Number Format ----
         if (fmt.NumberFormat is not null)
         {
             var want = AnalyzeNumberFormat(fmt.NumberFormat);
             var got = AnalyzeNumberFormat(style.NumberFormat.Format ?? "");
 
+            // If either side is Custom/Unknown, compare the literal text to avoid misclassification.
             if (want.Kind == NumFmtKind.Custom || want.Kind == NumFmtKind.Unknown ||
                 got.Kind == NumFmtKind.Custom || got.Kind == NumFmtKind.Unknown)
             {
@@ -108,6 +165,7 @@ public static partial class Grader
                 if (got.Kind != want.Kind)
                     reasons.Add($"number_format kind ({got.Kind.ToString().ToLower()} != {want.Kind.ToString().ToLower()})");
 
+                // Decimal place parity matters only for certain kinds
                 bool decimalsMatter =
                     want.Kind is NumFmtKind.Number or NumFmtKind.Currency or NumFmtKind.Percent or NumFmtKind.Accounting;
 
@@ -121,6 +179,7 @@ public static partial class Grader
             }
         }
 
+        // ---- Fill ----
         if (fmt.Fill?.Rgb is not null)
         {
             var want = NormalizeArgb(fmt.Fill.Rgb);
@@ -128,6 +187,7 @@ public static partial class Grader
             if (!ArgbEqual(got, want)) reasons.Add($"fill ({got} != {want})");
         }
 
+        // ---- Alignment ----
         if (fmt.Alignment is not null)
         {
             if (fmt.Alignment.Horizontal is not null &&
@@ -139,6 +199,7 @@ public static partial class Grader
                 reasons.Add("alignment vertical");
         }
 
+        // ---- Border (outline only) ----
         if (fmt.Border?.Outline is not null)
         {
             bool outlined =

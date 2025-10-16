@@ -5,7 +5,22 @@ using ClosedXML.Excel;
 
 public static partial class Grader
 {
-    private static CheckResult GradeRangeValue(Rule rule, IXLWorksheet wsS, IXLWorksheet? wsK) 
+    /// <summary>
+    /// Grades cell values over a range against either a key workbook's values (same addresses)
+    /// or a single literal expected value. Numeric values are compared with absolute tolerance;
+    /// otherwise trimmed string equality is used.
+    /// </summary>
+    /// <param name="rule">
+    /// Requires <c>Range</c>. Honors <c>Points</c>, <c>Tolerance</c>, <c>ExpectedFromKey</c>, and <c>Expected</c>.
+    /// </param>
+    /// <param name="wsS">Student worksheet.</param>
+    /// <param name="wsK">Key worksheet (used when <c>ExpectedFromKey</c> is true).</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>range_value:{range}</c>, awarding proportional credit
+    /// equal to matchedCells / totalCells.
+    /// </returns>
+    /// <exception cref="Exception">Thrown when <c>rule.Range</c> is missing.</exception>
+    private static CheckResult GradeRangeValue(Rule rule, IXLWorksheet wsS, IXLWorksheet? wsK)
     {
         var refRange = rule.Range ?? throw new Exception("range_value check missing 'range'");
         var pts = rule.Points;
@@ -40,7 +55,24 @@ public static partial class Grader
 
         return new CheckResult($"range_value:{refRange}", pts, earned, Math.Abs(frac - 1.0) < 1e-9, $"{correct}/{total} cells matched");
     }
-    private static CheckResult GradeRangeFormula(Rule rule, IXLWorksheet wsS, IXLWorksheet? wsK) 
+
+    /// <summary>
+    /// Grades formulas over a range. Compares against:
+    /// (1) the key workbook's formulas at the same addresses if <c>ExpectedFromKey</c> is true;
+    /// (2) a regex pattern; or (3) a literal expected formula.
+    /// Normalization enforces leading '=', strips spaces and '$', and upper-cases.
+    /// </summary>
+    /// <param name="rule">
+    /// Requires <c>Range</c>. Honors <c>ExpectedFromKey</c>, <c>ExpectedFormulaRegex</c>, and <c>ExpectedFormula</c>.
+    /// </param>
+    /// <param name="wsS">Student worksheet.</param>
+    /// <param name="wsK">Key worksheet (used when comparing to key formulas).</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>range_formula:{range}</c>, awarding proportional credit
+    /// equal to matchedFormulas / totalCells.
+    /// </returns>
+    /// <exception cref="Exception">Thrown when <c>rule.Range</c> is missing.</exception>
+    private static CheckResult GradeRangeFormula(Rule rule, IXLWorksheet wsS, IXLWorksheet? wsK)
     {
         var refRange = rule.Range ?? throw new Exception("range_formula check missing 'range'");
         var pts = rule.Points;
@@ -80,7 +112,19 @@ public static partial class Grader
 
         return new CheckResult($"range_formula:{refRange}", pts, earned, Math.Abs(frac - 1.0) < 1e-9, $"{correct}/{total} formulas matched");
     }
-    private static CheckResult GradeRangeFormat(Rule rule, IXLWorksheet wsS) 
+
+    /// <summary>
+    /// Grades formatting over a range by evaluating each used cell against one or more
+    /// acceptable <see cref="FormatSpec"/> options (<c>AnyOf</c> support). Tally is proportional.
+    /// </summary>
+    /// <param name="rule">Requires <c>Range</c>. Honors <c>Format</c> and <c>AnyOf[].Format</c>.</param>
+    /// <param name="wsS">Student worksheet.</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>range_format:{range}</c>, awarding proportional credit
+    /// equal to formattedMatches / totalUsedCells.
+    /// </returns>
+    /// <exception cref="Exception">Thrown when <c>rule.Range</c> is missing.</exception>
+    private static CheckResult GradeRangeFormat(Rule rule, IXLWorksheet wsS)
     {
         var refRange = rule.Range ?? throw new Exception("range_format check missing 'range'");
         var pts = rule.Points;
@@ -107,7 +151,19 @@ public static partial class Grader
 
         return new CheckResult($"range_format:{refRange}", pts, earned, Math.Abs(frac - 1.0) < 1e-9, $"{correct}/{total} cells match formatting");
     }
-    private static CheckResult GradeRangeSequence(Rule rule, IXLWorksheet wsS) 
+
+    /// <summary>
+    /// Verifies that a range contains a numeric sequence defined by <c>Start</c> and <c>Step</c>.
+    /// Blank cells are counted and must match the expected numeric for full credit.
+    /// </summary>
+    /// <param name="rule">Requires <c>Range</c>. Honors <c>Start</c> (default 1.0) and <c>Step</c> (default 1.0).</param>
+    /// <param name="wsS">Student worksheet.</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>range_sequence:{range}</c>, awarding proportional credit
+    /// equal to sequenceMatches / totalCells.
+    /// </returns>
+    /// <exception cref="Exception">Thrown when <c>rule.Range</c> is missing.</exception>
+    private static CheckResult GradeRangeSequence(Rule rule, IXLWorksheet wsS)
     {
         var refRange = rule.Range ?? throw new Exception("range_sequence check missing 'range'");
         var pts = rule.Points;
@@ -130,7 +186,19 @@ public static partial class Grader
         return new CheckResult($"range_sequence:{refRange}", pts, pts * frac,
             Math.Abs(frac - 1.0) < 1e-9, $"{correct}/{total} cells match sequence");
     }
-    private static CheckResult GradeRangeNumeric(Rule rule, IXLWorksheet wsS) 
+
+    /// <summary>
+    /// Checks that non-blank cells within a range are numeric (ignores blanks).
+    /// Awards proportional credit based on the fraction of non-blank numeric cells.
+    /// </summary>
+    /// <param name="rule">Requires <c>Range</c>. Honors <c>Points</c>.</param>
+    /// <param name="wsS">Student worksheet.</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>range_numeric:{range}</c>. If the range contains only blanks,
+    /// returns 0/pts with comment "no non-blank cells".
+    /// </returns>
+    /// <exception cref="Exception">Thrown when <c>rule.Range</c> is missing.</exception>
+    private static CheckResult GradeRangeNumeric(Rule rule, IXLWorksheet wsS)
     {
         var refRange = rule.Range ?? throw new Exception("range_numeric check missing 'range'");
         var pts = rule.Points;

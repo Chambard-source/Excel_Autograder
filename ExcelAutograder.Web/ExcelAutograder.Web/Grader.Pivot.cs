@@ -5,7 +5,24 @@ using ClosedXML.Excel;
 
 public static partial class Grader
 {
-    private static CheckResult GradePivotLayout(Rule rule, XLWorkbook wbS) 
+    /// <summary>
+    /// Grades a PivotTable’s layout in the student workbook against a <see cref="PivotSpec"/>.
+    /// Checks presence of required Rows, Columns, Report Filters, and Values (by caption and
+    /// aggregation, with a fallback that infers the source field from captions like
+    /// “Sum of Sales”). Supports optional gating by sheet and by table name substring.
+    ///
+    /// When multiple pivots exist (or name filtering is broad), the method returns success
+    /// as soon as one matching pivot is found; otherwise aggregates diagnostics for all
+    /// candidate pivots on the inspected sheet(s).
+    /// </summary>
+    /// <param name="rule">Rule containing <see cref="Rule.Pivot"/> expectations and point value.</param>
+    /// <param name="wbS">Student workbook to inspect for pivot tables.</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> whose <c>Name</c> is <c>pivot:{sheet}/{nameLikeOrFound}</c>.  
+    /// Full credit if all required fields match; otherwise 0 with a concise “missing …” summary.  
+    /// If no pivots are discoverable (or ClosedXML lacks the needed APIs), returns a failing result with an explanatory comment.
+    /// </returns>
+    private static CheckResult GradePivotLayout(Rule rule, XLWorkbook wbS)
     {
         var pts = rule.Points;
         var spec = rule.Pivot;

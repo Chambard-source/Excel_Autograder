@@ -3,6 +3,17 @@ using ClosedXML.Excel;
 
 public static partial class RubricAuto
 {
+    /// <summary>
+    /// Auto-generates a set of grading <see cref="Rule"/> objects for a single worksheet.
+    /// Heuristics include:
+    /// 1) Header formatting checks (A1/B1), 2) simple data block inference (A/B from row 2),
+    /// 3) sequence and numeric checks, 4) number format sampling, 5) summary formula checks
+    /// (with optional absolute reference requirement), 6) border outline, 7) table rules,
+    /// 8) per-cell formula/value rules for all used cells, and 9) pivot rules / presence heuristics.
+    /// Points are provisional; callers often rescale later.
+    /// </summary>
+    /// <param name="ws">Worksheet to inspect.</param>
+    /// <returns>List of auto-generated rules for this sheet.</returns>
     private static List<Rule> BuildChecksForSheet(IXLWorksheet ws)
     {
         var checks = new List<Rule>();
@@ -229,8 +240,12 @@ public static partial class RubricAuto
     }
 
     /// <summary>
-    /// Build pivot-layout rules using ClosedXML (or your existing approach) for a single sheet.
+    /// Builds <c>pivot_layout</c> rules for a given sheet using ClosedXML (via reflection for version tolerance).
+    /// Captures row/column/filter fields and value fields with normalized aggregation.
+    /// Skips empty layouts defensively.
     /// </summary>
+    /// <param name="ws">Worksheet to inspect.</param>
+    /// <returns>List of pivot layout rules found on the sheet.</returns>
     private static List<Rule> BuildPivotRulesForSheet(IXLWorksheet ws)
     {
         var rules = new List<Rule>();
@@ -293,9 +308,11 @@ public static partial class RubricAuto
     }
 
     /// <summary>
-    /// If your ZIP scan didn’t find pivots, you may have a heuristic fallback to
-    /// indicate pivot presence/shape; keep that here.
+    /// Creates lightweight presence rules when no real pivot objects can be read.
+    /// Looks for “Pivot” in table names, named ranges, and visible cell text.
     /// </summary>
+    /// <param name="ws">Worksheet to scan.</param>
+    /// <returns>Set of <c>custom_note</c> rules indicating pivot-like artifacts.</returns>
     private static IEnumerable<Rule> BuildPivotPresenceHeuristics(IXLWorksheet ws)
     {
         // Quick presence rules when there's no real pivot object
@@ -331,6 +348,13 @@ public static partial class RubricAuto
         return rules;
     }
 
+    /// <summary>
+    /// If the given header cell is bold and/or larger than default, adds a small-format rule.
+    /// </summary>
+    /// <param name="ws">Worksheet containing the header.</param>
+    /// <param name="cellAddr">A1 address to test (e.g., "A1").</param>
+    /// <param name="note">Human-readable note for the rule.</param>
+    /// <param name="checks">Target rule list to append to.</param>
     private static void TryAddHeaderFormat(IXLWorksheet ws, string cellAddr, string note, List<Rule> checks)
     {
         var c = ws.Cell(cellAddr);
@@ -356,6 +380,9 @@ public static partial class RubricAuto
         }
     }
 
+    /// <summary>
+    /// Scans downward in a column to find the last contiguous non-empty row between <paramref name="startRow"/> and <paramref name="maxRow"/>.
+    /// </summary>
     private static int FindLastDataRow(IXLWorksheet ws, string col, int startRow, int maxRow)
     {
         int last = startRow - 1;
@@ -372,6 +399,9 @@ public static partial class RubricAuto
         return last;
     }
 
+    /// <summary>
+    /// Returns true if the specified column range exactly matches the sequence 1,2,3,… without gaps.
+    /// </summary>
     private static bool LooksLikeSequence(IXLWorksheet ws, string col, int r1, int r2)
     {
         int expected = 1;
@@ -387,6 +417,9 @@ public static partial class RubricAuto
         return any;
     }
 
+    /// <summary>
+    /// Returns true if at least ~70% of cells in the column range parse as numeric.
+    /// </summary>
     private static bool LooksNumeric(IXLWorksheet ws, string col, int r1, int r2)
     {
         int count = 0, ok = 0;
@@ -399,6 +432,12 @@ public static partial class RubricAuto
         return count > 0 && ok >= Math.Max(1, (int)Math.Ceiling(count * 0.7));
     }
 
+    /// <summary>
+    /// Determines the most frequent number format string within a range, if any.
+    /// </summary>
+    /// <param name="ws">Worksheet containing the range.</param>
+    /// <param name="rangeA1">A1 range string.</param>
+    /// <returns>The dominant number format literal or <c>null</c> if none found.</returns>
     private static string? GetRangeNumberFormat(IXLWorksheet ws, string rangeA1)
     {
         var rng = ws.Range(rangeA1);
@@ -414,6 +453,9 @@ public static partial class RubricAuto
         return fmts.OrderByDescending(kv => kv.Value).First().Key;
     }
 
+    /// <summary>
+    /// Returns true if any side of the given range has a non-None border style.
+    /// </summary>
     private static bool HasOutlineBorder(IXLWorksheet ws, string rangeA1)
     {
         var rng = ws.Range(rangeA1);
@@ -424,6 +466,17 @@ public static partial class RubricAuto
             || b.BottomBorder != XLBorderStyleValues.None;
     }
 
+    /// <summary>
+    /// Generates rules tied to one or more selected ranges on a sheet:
+    /// per-cell formula/value checks, optional number-format checks per range,
+    /// summary formulas directly below each range, intersecting table rules,
+    /// and (optionally) pivot layout rules on the same sheet.
+    /// The <paramref name="sectionName"/> is stamped on generated rules for grouping.
+    /// </summary>
+    /// <param name="ws">Worksheet.</param>
+    /// <param name="ranges">Selected ranges to harvest.</param>
+    /// <param name="sectionName">Optional section label to apply to created rules.</param>
+    /// <returns>List of rules derived from the selected regions.</returns>
     private static List<Rule> BuildChecksForRanges(
         IXLWorksheet ws,
         IEnumerable<IXLRangeAddress> ranges,
@@ -648,8 +701,6 @@ public static partial class RubricAuto
             }
         }
 
-
         return checks;
     }
 }
-

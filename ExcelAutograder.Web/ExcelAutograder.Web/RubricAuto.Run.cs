@@ -3,6 +3,14 @@ using ClosedXML.Excel;
 
 public static partial class RubricAuto
 {
+    /// <summary>
+    /// Convenience entry point that builds a rubric from a key workbook using default total points (5.0).
+    /// Persists a ZIP snapshot of the workbook so artifact extractors (pivots/CF/charts) can run.
+    /// </summary>
+    /// <param name="wbKey">The key (instructor) workbook.</param>
+    /// <param name="sheetHint">Optional sheet name or substring hint to restrict which sheets are analyzed.</param>
+    /// <param name="allSheets">If true, analyze all sheets and ignore <paramref name="sheetHint"/>.</param>
+    /// <returns>A constructed <see cref="Rubric"/> with auto-generated checks and scaled totals.</returns>
     public static Rubric GenerateFromKey(XLWorkbook wbKey, string? sheetHint, bool allSheets)
     {
         using var ms = new MemoryStream();
@@ -10,8 +18,23 @@ public static partial class RubricAuto
         return BuildFromKey(wbKey, sheetHint, allSheets, 5.0, keyZipBytes: ms.ToArray());
     }
 
+    /// <summary>
+    /// Rescales every rule’s points in-place so the rubric total equals <paramref name="target"/>.
+    /// Relative weights are preserved.
+    /// </summary>
+    /// <param name="rub">Rubric to modify.</param>
+    /// <param name="target">Desired total points for the rubric.</param>
     public static void ScalePoints(Rubric rub, double target) => RescalePoints(rub, target);
 
+    /// <summary>
+    /// Builds a rubric from the key workbook and scales to <paramref name="targetTotal"/>.
+    /// Creates a ZIP snapshot for artifact extraction.
+    /// </summary>
+    /// <param name="wbKey">The key workbook.</param>
+    /// <param name="sheetHint">Optional sheet name or substring hint.</param>
+    /// <param name="allSheets">Set to true to include all sheets.</param>
+    /// <param name="targetTotal">Desired total points for the rubric.</param>
+    /// <returns>A constructed, scaled <see cref="Rubric"/>.</returns>
     public static Rubric BuildFromKey(XLWorkbook wbKey, string? sheetHint, bool allSheets, double targetTotal)
     {
         using var ms = new MemoryStream();
@@ -19,6 +42,17 @@ public static partial class RubricAuto
         return BuildFromKey(wbKey, sheetHint, allSheets, targetTotal, keyZipBytes: ms.ToArray());
     }
 
+    /// <summary>
+    /// Core builder that constructs a rubric from a key workbook.
+    /// Optionally consumes a pre-saved workbook ZIP to extract artifacts like pivot layouts,
+    /// conditional formats, and charts. Applies per-sheet normalization and global rescaling.
+    /// </summary>
+    /// <param name="wbKey">The key workbook.</param>
+    /// <param name="sheetHint">Optional sheet name or substring hint.</param>
+    /// <param name="allSheets">If true, process all sheets; otherwise use the hint/fallbacks.</param>
+    /// <param name="targetTotal">Desired total points to scale to (≤0 to skip scaling).</param>
+    /// <param name="keyZipBytes">Optional XLSX ZIP bytes for artifact scanners; if null, scanners are skipped.</param>
+    /// <returns>The generated <see cref="Rubric"/>.</returns>
     public static Rubric BuildFromKey(
             XLWorkbook wbKey, string? sheetHint, bool allSheets, double targetTotal, byte[]? keyZipBytes)
     {
@@ -62,6 +96,12 @@ public static partial class RubricAuto
         return rub;
     }
 
+    /// <summary>
+    /// Appends pivot layout rules extracted from workbook ZIP to an existing check list,
+    /// avoiding duplicates by pivot table name (case-insensitive).
+    /// </summary>
+    /// <param name="checks">Destination rule list for the sheet.</param>
+    /// <param name="zipRules">Pivot rules obtained from ZIP parsing.</param>
     private static void MergePivotRules(List<Rule> checks, List<Rule> zipRules)
     {
         var existing = new HashSet<string>(
@@ -73,8 +113,17 @@ public static partial class RubricAuto
                 checks.Add(r);
     }
 
-    // Build rubric from explicit sections & ranges per sheet.
-    // sectionsPerSheet: Sheet -> list of (sectionName, ranges[])
+    /// <summary>
+    /// Builds a rubric from explicit per-sheet sections and ranges.
+    /// Generates per-cell formula/value checks, summary formulas, intersecting table rules,
+    /// and (optionally) artifacts discovered from the ZIP. Preserves the provided section order.
+    /// </summary>
+    /// <param name="wbKey">The key workbook.</param>
+    /// <param name="sectionsPerSheet">Map of sheet name → list of (section name, A1 ranges).</param>
+    /// <param name="includeArtifacts">If true, append discovered pivot/CF/chart rules under an “Artifacts” section.</param>
+    /// <param name="targetTotal">Desired total points (≤0 to skip scaling).</param>
+    /// <param name="keyZipBytes">Optional XLSX ZIP bytes for artifact discovery.</param>
+    /// <returns>The generated <see cref="Rubric"/>.</returns>
     public static Rubric BuildFromKeyRanges(
         XLWorkbook wbKey,
         IDictionary<string, List<(string section, List<string> ranges)>> sectionsPerSheet,
@@ -297,6 +346,16 @@ public static partial class RubricAuto
         return rub;
     }
 
+    /// <summary>
+    /// Builds a rubric from a map of sheet → ranges (no explicit sections).
+    /// Generates per-cell rules, plus optional artifacts extracted from the provided ZIP.
+    /// </summary>
+    /// <param name="wbKey">The key workbook.</param>
+    /// <param name="ranges">Map of sheet name → A1 ranges to harvest.</param>
+    /// <param name="includeArtifacts">If true, include pivot/CF/chart rules discovered via ZIP.</param>
+    /// <param name="targetTotal">Desired total points (≤0 to skip scaling).</param>
+    /// <param name="keyZipBytes">Optional XLSX ZIP bytes for artifact discovery.</param>
+    /// <returns>The generated <see cref="Rubric"/>.</returns>
     public static Rubric BuildFromKeyRanges(
     XLWorkbook wbKey,
     IDictionary<string, List<string>> ranges,

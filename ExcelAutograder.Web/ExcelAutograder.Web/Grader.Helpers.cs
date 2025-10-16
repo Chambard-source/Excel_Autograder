@@ -9,7 +9,17 @@ public static partial class Grader
 {
     // Move the existing implementations here from your original Grader.cs:
 
+    /// <summary>
+    /// Normalizes any object to a trimmed string (null-safe).
+    /// </summary>
     private static string Normalize(object? o) => (o?.ToString() ?? "").Trim();
+
+    /// <summary>
+    /// Normalizes a formula string to a canonical form for comparison:
+    /// ensures leading '=', removes spaces and '$', and upper-cases.
+    /// </summary>
+    /// <param name="f">A1 or R1C1 formula text (with or without '=')</param>
+    /// <returns>Canonical uppercase formula beginning with '='</returns>
     private static string NormalizeFormula(string? f)
     {
         var s = (f ?? "").Trim();
@@ -19,6 +29,13 @@ public static partial class Grader
         return s.ToUpperInvariant();
     }
 
+    /// <summary>
+    /// Tries a list of acceptable options until one matches using the supplied checker.
+    /// Collects reasons from each failed option for an aggregated failure message.
+    /// </summary>
+    /// <param name="options">Candidate options (e.g., alternative expected values)</param>
+    /// <param name="check">Delegate that evaluates a single option and returns (ok, reason)</param>
+    /// <returns>(ok, reason) where reason summarizes the match or combined failures</returns>
     private static (bool ok, string reason) AnyOfMatch(List<RuleOption> options, Func<RuleOption, (bool ok, string reason)> check)
     {
         var reasons = new List<string>();
@@ -30,6 +47,14 @@ public static partial class Grader
         }
         return (false, "No acceptable option matched. " + string.Join(" | ", reasons));
     }
+
+    /// <summary>
+    /// Attempts to coerce an object into a double. Supports numeric primitives, DateTime (OADate),
+    /// and culture-sensitive parsing of strings.
+    /// </summary>
+    /// <param name="o">Source value</param>
+    /// <param name="d">Output double when successful</param>
+    /// <returns>True if conversion succeeded, else false</returns>
     private static bool TryToDouble(object? o, out double d)
     {
         if (o is null) { d = 0; return false; }
@@ -50,6 +75,10 @@ public static partial class Grader
                 d = 0; return false;
         }
     }
+
+    /// <summary>
+    /// Converts a <see cref="JsonElement"/> into the closest .NET primitive or string.
+    /// </summary>
     private static object? JsonToNet(JsonElement e) => e.ValueKind switch
     {
         JsonValueKind.String => e.GetString(),
@@ -59,6 +88,14 @@ public static partial class Grader
         JsonValueKind.Null => null,
         _ => e.ToString()
     };
+
+    /// <summary>
+    /// Compares a cell's displayed value against a rule's expected literal or regex,
+    /// with numeric tolerance when both sides parse as numbers.
+    /// </summary>
+    /// <param name="cell">Student cell</param>
+    /// <param name="r">Rule that may carry Expected/ExpectedRegex/Tolerance</param>
+    /// <returns>(ok, detail) with human-readable reasoning</returns>
     private static (bool ok, string detail) ValueMatches(IXLCell cell, Rule r)
     {
         var expectedLiteral = GetExpectedLiteral(r);     // ← normalized string/number/bool
@@ -112,6 +149,11 @@ public static partial class Grader
             ? (true, "value text matches")
             : (false, $"value text got '{studentText}' expected '{want}'");
     }
+
+    /// <summary>
+    /// Extracts the rule's literal expected value as a string suitable for comparisons.
+    /// Handles JSON-typed values and normalizes numbers to invariant strings.
+    /// </summary>
     private static string? GetExpectedLiteral(Rule rr)
     {
         if (rr.Expected is null) return null;
@@ -134,6 +176,10 @@ public static partial class Grader
 
         return rr.Expected.ToString();
     }
+
+    /// <summary>
+    /// Converts a short operator token (e.g., <c>gt</c>) to a human-readable label.
+    /// </summary>
     private static string OpLabel(string? op) => op switch
     {
         "gt" => "> greater than",
@@ -148,6 +194,11 @@ public static partial class Grader
     };
 
     // Color helpers: --------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Normalizes RGB/ARGB hex strings to 8-digit ARGB uppercase with optional leading '#'.
+    /// Accepts RGB (6), ARGB (8), and '#'-prefixed variants.
+    /// </summary>
     private static string NormalizeArgb(string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return "";
@@ -158,17 +209,31 @@ public static partial class Grader
         if (up.Length == 7 && up.StartsWith("#")) return "FF" + up[1..];
         return up;
     }
+
+    /// <summary>
+    /// Converts a ClosedXML <see cref="XLColor"/> to ARGB hex (without '#').
+    /// </summary>
     private static string XLColorToArgb(XLColor color)
     {
         // ClosedXML 0.105.x: XLColor.Color is System.Drawing.Color
         var sys = color.Color;
         return $"FF{sys.R:X2}{sys.G:X2}{sys.B:X2}";
     }
-    
+
+    /// <summary>
+    /// Equality check for ARGB/RGB strings after normalization.
+    /// </summary>
     private static bool ArgbEqual(string a, string b) => NormalizeArgb(a) == NormalizeArgb(b);
 
-    
     // A1 helpers used by CF/table (if they existed in your file): -------------------------------------------
+
+    /// <summary>
+    /// Parses an A1 range token into 1-based inclusive coordinates.
+    /// Supports single cells (C7), cell ranges (A1:B10), whole columns (B:B), and whole rows (2:2).
+    /// </summary>
+    /// <param name="a1">A1 range string</param>
+    /// <param name="rect">Output rectangle (r1,c1,r2,c2)</param>
+    /// <returns>True on success; false if the token cannot be parsed</returns>
     private static bool TryParseA1Range(string a1, out (int r1, int c1, int r2, int c2) rect)
     {
         // returns 1-based inclusive coordinates
@@ -243,12 +308,20 @@ public static partial class Grader
             return n;
         }
     }
+
+    /// <summary>
+    /// Rectangle intersection for 1-based inclusive (r1,c1,r2,c2) A1 rects.
+    /// </summary>
     private static bool RectsIntersect((int r1, int c1, int r2, int c2) a, (int r1, int c1, int r2, int c2) b)
     {
         return !(b.c1 > a.c2 || b.c2 < a.c1 || b.r1 > a.r2 || b.r2 < a.r1);
     }
 
     // CF description helpers if present: ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Builds a human-readable description of a conditional-format spec (type/operator/formulas/text/fill/range).
+    /// </summary>
     private static string DescribeCond(ConditionalFormatSpec s)
     {
         var bits = new List<string>();
@@ -278,6 +351,18 @@ public static partial class Grader
         return string.Join(", ", bits);
     }
 
+    /// <summary>
+    /// Produces a description string for a rule discovered in OOXML by mapping raw XML parts
+    /// into a <see cref="ConditionalFormatSpec"/> and delegating to <see cref="DescribeCond(ConditionalFormatSpec)"/>.
+    /// </summary>
+    /// <param name="sheet">Worksheet name</param>
+    /// <param name="sqref">Space-separated A1 ranges from <c>conditionalFormatting@sqref</c></param>
+    /// <param name="type">Rule type token from <c>cfRule@type</c></param>
+    /// <param name="opToken">Operator token (already normalized if desired)</param>
+    /// <param name="frms">List of &lt;formula&gt; strings</param>
+    /// <param name="text">Contains-text value (if any)</param>
+    /// <param name="fillRgb">RGB string resolved from <c>dxfId</c></param>
+    /// <returns>Human-friendly description of the rule</returns>
     private static string DescribeCondFromXml(string sheet, string sqref, string? type, string? opToken, IList<string> frms, string? text, string? fillRgb)
     {
         var s = new ConditionalFormatSpec

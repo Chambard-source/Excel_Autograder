@@ -1,25 +1,65 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Xml.Linq;
 using ClosedXML.Excel;
 
 public static partial class Grader
 {
-    private class ChartInfo 
+    /// <summary>
+    /// Parsed chart metadata extracted from OOXML.
+    /// </summary>
+    private class ChartInfo
     {
+        /// <summary>Worksheet the chart belongs to.</summary>
         public string Sheet = "";
-        public string Name = "";                // "Chart 1", etc.
-        public string Type = "";                // normalized: line/column/bar/pie/scatter/area/doughnut/radar/bubble
+        /// <summary>Frame name (e.g., "Chart 1").</summary>
+        public string Name = "";
+        /// <summary>Normalized chart type (line/column/bar/pie/scatter/area/doughnut/radar/bubble/pie3D).</summary>
+        public string Type = "";
+        /// <summary>Chart title text (if rich text), otherwise <c>null</c>.</summary>
         public string? Title, TitleRef;
+        /// <summary>Legend position token from OOXML (e.g., right, left, top).</summary>
         public string? LegendPos;
+        /// <summary>True if any <c>&lt;c:dLbls&gt;</c> block is present.</summary>
         public bool DataLabels;
-        public string? XTitle, YTitle;
+        /// <summary>Category (X) axis title text.</summary>
+        public string? XTitle;
+        /// <summary>Value (Y) axis title text.</summary>
+        public string? YTitle;
+        /// <summary>Series list captured from plot area.</summary>
         public List<SeriesInfo> Series = new();
     }
-    private class SeriesInfo { public string? Name, NameRef, CatRef, ValRef; }
 
-    private static CheckResult GradeChart(Rule rule, XLWorkbook wbS) 
+    /// <summary>
+    /// Parsed series metadata for a chart.
+    /// </summary>
+    private class SeriesInfo
+    {
+        /// <summary>Series name literal (if rich text).</summary>
+        public string? Name;
+        /// <summary>Series name cell reference (A1) when title comes from a cell.</summary>
+        public string? NameRef;
+        /// <summary>Categories reference (A1) – <c>strRef</c> or <c>numRef</c>.</summary>
+        public string? CatRef;
+        /// <summary>Values reference (A1) – usually <c>numRef</c>.</summary>
+        public string? ValRef;
+    }
+
+    /// <summary>
+    /// Grades a chart in the student workbook against a <see cref="ChartSpec"/>.
+    /// The check builds a section-aware ID, parses all charts from the student's OOXML,
+    /// filters by sheet (if provided), and then scores the best-matching chart by comparing:
+    /// name-like, type, title/titleRef, legend position, data-labels presence, axis titles, and series refs.
+    /// </summary>
+    /// <param name="rule">Rule containing <see cref="Rule.Chart"/> expectations.</param>
+    /// <param name="wbS">Student workbook (used to capture OOXML bytes).</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> awarding a fraction of points proportional to matched checks,
+    /// with a concise summary of missed attributes when not perfect.
+    /// </returns>
+    private static CheckResult GradeChart(Rule rule, XLWorkbook wbS)
     {
         var pts = rule.Points;
         var spec = rule.Chart;
@@ -203,7 +243,13 @@ public static partial class Grader
         return new CheckResult(successId, pts, earned, pass, comment);
     }
 
-    private static Dictionary<string, List<ChartInfo>> ParseChartsFromZip(byte[] zipBytes) 
+    /// <summary>
+    /// Parses all charts from the student workbook OOXML zip and returns them grouped by sheet name.
+    /// Extracts type, title/titleRef, legend position, data label presence, axis titles, and series refs.
+    /// </summary>
+    /// <param name="zipBytes">Raw student <c>.xlsx</c> bytes.</param>
+    /// <returns>Dictionary of <c>sheetName → List&lt;ChartInfo&gt;</c>.</returns>
+    private static Dictionary<string, List<ChartInfo>> ParseChartsFromZip(byte[] zipBytes)
     {
         using var ms = new MemoryStream(zipBytes);
         using var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true);
@@ -214,6 +260,7 @@ public static partial class Grader
         XNamespace nsMain = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         XNamespace pkg = "http://schemas.openxmlformats.org/package/2006/relationships";
 
+        // Read an entry's text, or empty if missing.
         string ReadEntryText(string path)
         {
             var e = zip.GetEntry(path);
@@ -354,7 +401,9 @@ public static partial class Grader
 
         return result;
 
-        // helpers
+        // ---- Local helpers (commented inline; XML doc tags don't apply to locals) ----
+
+        // Reads text or cell-ref for <c:title>/<c:tx> nodes.
         static (string? txt, string? cellRef) ReadChartText(XElement? node, XNamespace cns, XNamespace ans)
         {
             if (node == null) return (null, null);
@@ -375,7 +424,7 @@ public static partial class Grader
             return (null, f);
         }
 
-
+        // Infers normalized chart type from plot area.
         static string DetectChartType(XElement? plotArea)
         {
             if (plotArea == null) return "";

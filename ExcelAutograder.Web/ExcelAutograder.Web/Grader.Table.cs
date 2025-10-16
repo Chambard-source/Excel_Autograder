@@ -5,7 +5,19 @@ using ClosedXML.Excel;
 
 public static partial class Grader
 {
-    private static CheckResult GradeTable(Rule rule, IXLWorksheet wsS) 
+    /// <summary>
+    /// Grades an Excel Table on a worksheet against a <see cref="TableSpec"/>.
+    /// Checks (when provided): column presence and order, exact range reference, body dimensions (rows/cols),
+    /// row containment by column values, and whole-body comparison (ordered or multiset).
+    /// Chooses the best-matching table when multiple candidates exist and awards proportional credit.
+    /// </summary>
+    /// <param name="rule">Rule containing <see cref="Rule.Table"/> expectations and point value.</param>
+    /// <param name="wsS">Student worksheet to search for tables.</param>
+    /// <returns>
+    /// <see cref="CheckResult"/> with id <c>table:{sheet}/{nameLikeOrBest}</c>, awarding a fraction of points
+    /// equal to matchedChecks / totalChecks and a concise note of passes/misses.
+    /// </returns>
+    private static CheckResult GradeTable(Rule rule, IXLWorksheet wsS)
     {
         var pts = rule.Points;
         var spec = rule.Table;

@@ -1,6 +1,6 @@
 wwwroot\css\styles.css
 wwwroot\index.html
+wwwroot\rubric_example.json
 wwwroot\js\builder-core.js
 wwwroot\js\ordering.js
 wwwroot\js\ranges-builder.js
-wwwroot\rubric_example.json
