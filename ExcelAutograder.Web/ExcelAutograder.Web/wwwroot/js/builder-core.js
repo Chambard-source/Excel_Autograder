@@ -2019,4 +2019,30 @@
 
         // boot
         render();
+// >>> Forced settings: always group by sections with strict global section order
+UI.groupBySection = true;
+UI.strictSectionOrder = true;
+const _elGroupChk = document.getElementById('groupBySection');
+if (_elGroupChk) { try { _elGroupChk.checked = true; _elGroupChk.disabled = true; _elGroupChk.closest('.form-check')?.classList.add('d-none'); } catch {} }
+const _elStrictChk = document.getElementById('strictOrder');
+if (_elStrictChk) { try { _elStrictChk.checked = true; _elStrictChk.disabled = true; _elStrictChk.closest('.form-check')?.classList.add('d-none'); } catch {} }
+// <<< Forced settings
+
     
+
+// >>> Override results renderer to always use global grouped-by-section ordering
+(function() {
+    try {
+        const _orig = window.renderResults || null;
+        window.renderResults = function() {
+            UI.groupBySection = true;
+            UI.strictSectionOrder = true;
+            if (typeof window.renderGroupedResults === 'function') {
+                return window.renderGroupedResults();
+            }
+            // Fallback: call original if grouped renderer is unavailable
+            if (typeof _orig === 'function') return _orig();
+        };
+    } catch (e) { console.warn('Override renderResults failed:', e); }
+})();
+// <<< Override

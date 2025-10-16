@@ -116,3 +116,14 @@ function reorderSheetsBySectionOrder() {
                 try { refreshOrderUI(); } catch (e) { }
             });
         })();
+
+;(() => {
+  try {
+    if (window.rubric && window.rubric.meta && Array.isArray(window.rubric.meta.sectionOrder)) {
+      // ensure a consistent sheet order based on global section ordering
+      if (typeof window.reorderSheetsBySectionOrder === 'function') {
+         window.reorderSheetsBySectionOrder(window.rubric);
+      }
+    }
+  } catch (e) { console.warn('reorderSheetsBySectionOrder on boot failed', e); }
+})();
